@@ -1,0 +1,349 @@
+{
+  "campus_qa": [
+    {
+      "query": "北邮图书馆几点开门？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "library",
+      "reference_answer": "北邮图书馆工作日开放时间为8:00-22:00，周末为9:00-21:00。"
+    },
+    {
+      "query": "图书馆周末开放吗？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "library",
+      "reference_answer": "图书馆周末照常开放，时间为9:00-21:00。"
+    },
+    {
+      "query": "怎么借书？需要什么证件？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "library",
+      "reference_answer": "持校园一卡通即可借书，本科生最多借10本，研究生最多借15本。"
+    },
+    {
+      "query": "教务处在哪个楼？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "building_location",
+      "reference_answer": "教务处位于行政楼（主楼）二层。"
+    },
+    {
+      "query": "计算机学院办公室在哪？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "building_location",
+      "reference_answer": "计算机学院办公室位于教三楼。"
+    },
+    {
+      "query": "学校正门怎么走？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "navigation",
+      "reference_answer": "学校正门位于西土城路，从地铁10号线西土城站A口出站步行约5分钟。"
+    },
+    {
+      "query": "如何申请转专业？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "academic_process",
+      "reference_answer": "转专业需在每学年春季学期提出申请，需满足GPA要求并通过接收学院面试。"
+    },
+    {
+      "query": "选课什么时候开始？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "academic_process",
+      "reference_answer": "选课一般在每学期开学前一周开始，具体时间请关注教务处通知。"
+    },
+    {
+      "query": "补考申请怎么办？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "academic_process",
+      "reference_answer": "补考申请需在开学第一周内通过教务系统提交，逾期不予受理。"
+    },
+    {
+      "query": "学分绩点怎么计算？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "academic_process",
+      "reference_answer": "绩点=∑(课程学分×课程绩点)/∑课程学分，其中90-100分对应4.0绩点。"
+    },
+    {
+      "query": "校医院周末开诊吗？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "health_services",
+      "reference_answer": "校医院周末上午有值班门诊（9:00-12:00），急诊24小时开放。"
+    },
+    {
+      "query": "校医院可以报销医保吗？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "health_services",
+      "reference_answer": "校医院支持大学生医保报销，门诊报销比例为70%，需携带校园卡和医保卡。"
+    },
+    {
+      "query": "心理咨询中心在哪？怎么预约？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "health_services",
+      "reference_answer": "心理咨询中心位于学生活动中心三楼，可通过学校心理健康平台在线预约。"
+    },
+    {
+      "query": "今天食堂有什么好吃的？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "dining",
+      "reference_answer": "学校有多个食堂，建议查看各食堂当日菜单或关注后勤公众号了解每日菜品。"
+    },
+    {
+      "query": "学一食堂几点关门？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "dining",
+      "reference_answer": "学一食堂营业时间：早餐7:00-9:00，午餐11:00-13:00，晚餐17:00-19:00。"
+    },
+    {
+      "query": "哪个食堂的饭最好吃？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "dining",
+      "reference_answer": "各食堂各有特色，学一食堂以家常菜为主，风味餐厅有各地特色小吃。"
+    },
+    {
+      "query": "宿舍断电时间是几点？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "dormitory",
+      "reference_answer": "本科生宿舍晚上23:00断电，研究生宿舍不断电。"
+    },
+    {
+      "query": "宿舍可以用大功率电器吗？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "dormitory",
+      "reference_answer": "宿舍禁止使用大功率电器（如电热水壶、电吹风等），违规将被没收并处罚。"
+    },
+    {
+      "query": "校园网怎么连接？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "it_services",
+      "reference_answer": "连接BUPT-WiFi，打开浏览器输入学号和密码即可登录校园网。"
+    },
+    {
+      "query": "VPN怎么设置？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "it_services",
+      "reference_answer": "下载学校VPN客户端，使用学号和密码登录，即可在校外访问校内资源。"
+    },
+    {
+      "query": "体育馆怎么预约场地？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "sports",
+      "reference_answer": "通过'北邮体育'小程序预约，提前一天开放预约，每人每天限约一次。"
+    },
+    {
+      "query": "游泳馆开放时间是什么？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "sports",
+      "reference_answer": "游泳馆开放时间为周一至周五12:00-13:30和18:00-21:00，周末10:00-21:00。"
+    },
+    {
+      "query": "奖学金申请条件是什么？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "scholarship",
+      "reference_answer": "国家奖学金要求GPA排名前10%，学业奖学金根据综合排名评定。"
+    },
+    {
+      "query": "助学贷款怎么申请？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "financial_aid",
+      "reference_answer": "助学贷款需在每年8月底前通过国家开发银行系统在线申请，新生入学时提交材料。"
+    },
+    {
+      "query": "毕业论文什么时候提交？",
+      "expected_intent": "KNOWLEDGE",
+      "expected_category": "graduation",
+      "reference_answer": "毕业论文初稿提交截止时间为4月底，终稿提交截止时间为5月中旬。"
+    },
+    {
+      "query": "帮我查一下课程表",
+      "expected_intent": "TASK_EXECUTION",
+      "expected_category": "schedule_query",
+      "reference_answer": "好的，请问您想查询哪个学期的课程表？请提供您的学号。"
+    },
+    {
+      "query": "我想报修宿舍的空调",
+      "expected_intent": "TASK_EXECUTION",
+      "expected_category": "repair_request",
+      "reference_answer": "好的，请提供您的宿舍楼号和房间号，以及空调的具体问题描述。"
+    },
+    {
+      "query": "帮我预约明天下午的羽毛球场",
+      "expected_intent": "TASK_EXECUTION",
+      "expected_category": "booking",
+      "reference_answer": "好的，请确认预约信息：明天下午羽毛球场。请问您偏好的时间段是？"
+    },
+    {
+      "query": "你好，今天天气怎么样？",
+      "expected_intent": "CHITCHAT",
+      "expected_category": "greeting",
+      "reference_answer": "你好！今天北京天气不错，适合出门走走。有什么我可以帮您的吗？"
+    },
+    {
+      "query": "哈哈你真有趣",
+      "expected_intent": "CHITCHAT",
+      "expected_category": "casual_chat",
+      "reference_answer": "谢谢夸奖！有什么校园相关的问题我可以帮您解答吗？"
+    }
+  ],
+  "multi_turn_scenarios": [
+    {
+      "scenario_name": "连续问课程相关问题",
+      "turns": [
+        {"query": "这学期有哪些必修课？", "expected_behavior": "检索课程信息，返回必修课列表"},
+        {"query": "高等数学是周几上课？", "expected_behavior": "结合上一轮的课程上下文，检索具体课程时间"},
+        {"query": "这门课的老师是谁？", "expected_behavior": "利用短期记忆中的'高等数学'上下文，检索教师信息"}
+      ]
+    },
+    {
+      "scenario_name": "提到之前的报修单",
+      "turns": [
+        {"query": "我之前报修了宿舍空调，现在什么情况？", "expected_behavior": "检索情景记忆中的报修记录"},
+        {"query": "已经一周了还没修好", "expected_behavior": "结合情景记忆中的报修时间，提供催修建议"},
+        {"query": "能帮我再催一下吗？", "expected_behavior": "触发任务执行流程，基于已有报修信息创建催修请求"}
+      ]
+    },
+    {
+      "scenario_name": "纠正之前的错误信息",
+      "turns": [
+        {"query": "图书馆几点关门？", "expected_behavior": "检索并返回图书馆关门时间"},
+        {"query": "不对，我记得是10点关门", "expected_behavior": "识别用户纠正，比对检索结果，说明信息来源"},
+        {"query": "好吧，那明天的开放时间呢？", "expected_behavior": "保持图书馆话题上下文，检索明天的开放时间"}
+      ]
+    },
+    {
+      "scenario_name": "从闲聊切换到知识查询",
+      "turns": [
+        {"query": "你好呀", "expected_behavior": "识别为闲聊，友好回复"},
+        {"query": "对了，奖学金什么时候评？", "expected_behavior": "识别意图切换为知识查询，检索奖学金评选时间"},
+        {"query": "需要准备什么材料？", "expected_behavior": "结合上一轮奖学金上下文，检索申请材料要求"}
+      ]
+    },
+    {
+      "scenario_name": "多轮任务执行：场地预约",
+      "turns": [
+        {"query": "我想预约篮球场", "expected_behavior": "识别任务执行意图，询问具体日期和时间"},
+        {"query": "明天下午3点", "expected_behavior": "利用短期记忆中的篮球场上下文，确认预约信息"},
+        {"query": "对，就这样", "expected_behavior": "执行预约操作并返回确认结果"},
+        {"query": "能再帮我约一个羽毛球场吗？", "expected_behavior": "开始新的预约任务，但保持用户的时间偏好上下文"}
+      ]
+    },
+    {
+      "scenario_name": "模糊查询需要澄清",
+      "turns": [
+        {"query": "那个东西在哪里？", "expected_behavior": "检索结果置信度低，触发澄清请求"},
+        {"query": "就是那个办证的地方", "expected_behavior": "结合上下文推断可能是一卡通中心或教务处"},
+        {"query": "校园卡", "expected_behavior": "明确为校园卡办理地点，检索一卡通中心位置"}
+      ]
+    },
+    {
+      "scenario_name": "跨话题记忆关联",
+      "turns": [
+        {"query": "我是计算机学院大三的", "expected_behavior": "保存用户画像信息到长期记忆"},
+        {"query": "有什么适合我的实习机会？", "expected_behavior": "利用长期记忆中的学院和年级信息，检索相关实习信息"},
+        {"query": "我之前参加过ACM竞赛", "expected_behavior": "更新用户画像，关联竞赛经历"}
+      ]
+    },
+    {
+      "scenario_name": "重复问题识别",
+      "turns": [
+        {"query": "选课时间是什么时候？", "expected_behavior": "检索选课时间信息并返回"},
+        {"query": "选课什么时候开始？", "expected_behavior": "识别为重复问题，利用短期记忆直接回答，减少检索"}
+      ]
+    },
+    {
+      "scenario_name": "追问细节",
+      "turns": [
+        {"query": "学校有几个食堂？", "expected_behavior": "检索食堂列表信息"},
+        {"query": "哪个最近？", "expected_behavior": "结合上下文理解'最近'指距离最近的食堂"},
+        {"query": "那个食堂有清真窗口吗？", "expected_behavior": "结合记忆中选定的食堂，检索清真窗口信息"},
+        {"query": "价格怎么样？", "expected_behavior": "继续保持食堂上下文，检索价格信息"}
+      ]
+    },
+    {
+      "scenario_name": "情感支持后转入实际帮助",
+      "turns": [
+        {"query": "最近考试压力好大", "expected_behavior": "识别为闲聊/情感支持，给予关心回复"},
+        {"query": "有没有减压的方式？", "expected_behavior": "可能检索心理咨询或校园活动信息"},
+        {"query": "心理咨询怎么预约？", "expected_behavior": "识别为知识查询，检索心理咨询预约方式"}
+      ]
+    },
+    {
+      "scenario_name": "英文混合查询",
+      "turns": [
+        {"query": "BUPT的CS专业排名怎么样？", "expected_behavior": "处理中英文混合输入，检索计算机学科排名"},
+        {"query": "和北航比呢？", "expected_behavior": "利用上下文理解对比对象，检索排名对比信息"}
+      ]
+    },
+    {
+      "scenario_name": "成绩查询多轮",
+      "turns": [
+        {"query": "帮我查一下这学期的成绩", "expected_behavior": "识别任务执行，请求身份验证信息"},
+        {"query": "学号2021210456", "expected_behavior": "PII检测并脱敏，同时利用学号执行查询"},
+        {"query": "高数成绩多少？", "expected_behavior": "基于已获取的成绩数据，返回具体科目成绩"}
+      ]
+    },
+    {
+      "scenario_name": "活动查询",
+      "turns": [
+        {"query": "最近学校有什么活动？", "expected_behavior": "检索近期校园活动信息"},
+        {"query": "有没有技术类的？", "expected_behavior": "在活动上下文中筛选技术类活动"},
+        {"query": "怎么报名？", "expected_behavior": "利用上下文中的具体活动，检索报名方式"}
+      ]
+    },
+    {
+      "scenario_name": "快递与生活服务",
+      "turns": [
+        {"query": "快递驿站在哪？", "expected_behavior": "检索快递驿站位置信息"},
+        {"query": "几点下班？", "expected_behavior": "保持快递驿站上下文，检索营业时间"},
+        {"query": "周末能取吗？", "expected_behavior": "继续上下文，确认周末营业情况"}
+      ]
+    },
+    {
+      "scenario_name": "考研相关咨询",
+      "turns": [
+        {"query": "考研自习室在哪？", "expected_behavior": "检索考研自习室位置"},
+        {"query": "需要预约吗？", "expected_behavior": "保持自习室上下文，检索预约规则"},
+        {"query": "有没有考研交流群？", "expected_behavior": "检索考研相关社群信息"},
+        {"query": "学校有考研辅导班吗？", "expected_behavior": "检索学校官方考研辅导资源"}
+      ]
+    },
+    {
+      "scenario_name": "投诉与建议",
+      "turns": [
+        {"query": "食堂的饭太难吃了", "expected_behavior": "识别为投诉/情感表达，给予回应并引导"},
+        {"query": "我想投诉", "expected_behavior": "识别任务执行意图，引导用户提供投诉详情"},
+        {"query": "学一食堂今天的红烧肉不新鲜", "expected_behavior": "记录投诉内容到情景记忆，提供投诉渠道"}
+      ]
+    },
+    {
+      "scenario_name": "校园卡问题",
+      "turns": [
+        {"query": "校园卡丢了怎么办？", "expected_behavior": "检索校园卡挂失和补办流程"},
+        {"query": "在哪里补办？", "expected_behavior": "保持校园卡上下文，检索补办地点"},
+        {"query": "需要多少钱？", "expected_behavior": "继续上下文，检索补办费用"},
+        {"query": "多久能拿到新卡？", "expected_behavior": "检索补办周期信息"}
+      ]
+    },
+    {
+      "scenario_name": "交通出行",
+      "turns": [
+        {"query": "学校附近有地铁站吗？", "expected_behavior": "检索学校周边地铁站信息"},
+        {"query": "到西直门怎么走？", "expected_behavior": "利用位置上下文，提供地铁路线信息"},
+        {"query": "大概多长时间？", "expected_behavior": "保持路线上下文，提供时间估算"}
+      ]
+    },
+    {
+      "scenario_name": "社团咨询",
+      "turns": [
+        {"query": "学校有哪些技术社团？", "expected_behavior": "检索技术类社团列表"},
+        {"query": "机器人社团怎么加入？", "expected_behavior": "检索机器人社团的入会方式"},
+        {"query": "有什么活动？", "expected_behavior": "保持社团上下文，检索近期社团活动"}
+      ]
+    },
+    {
+      "scenario_name": "毕业相关多轮",
+      "turns": [
+        {"query": "毕业需要多少学分？", "expected_behavior": "检索毕业学分要求"},
+        {"query": "我还差几个选修学分", "expected_behavior": "结合用户信息和学分要求提供建议"},
+        {"query": "有什么推荐的选修课？", "expected_behavior": "基于缺少的学分类型推荐选修课"},
+        {"query": "这些课容易过吗？", "expected_behavior": "检索课程评价相关信息"}
+      ]
+    }
+  ]
+}
