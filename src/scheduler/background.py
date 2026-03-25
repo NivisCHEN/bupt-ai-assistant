@@ -221,7 +221,7 @@ class BackgroundScheduler:
 
         for user_id in all_user_ids:
             try:
-                stats = self.memory_manager.run_maintenance(user_id)
+                stats = await self.memory_manager.run_maintenance(user_id)
                 logger.info(
                     "Weekly compression for user {}: {}", user_id, stats
                 )

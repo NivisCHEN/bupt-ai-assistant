@@ -49,6 +49,75 @@ class MemoryManager:
     # Conversation recording
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Async wrappers (called by DialogueManager)
+    # ------------------------------------------------------------------
+
+    async def get_recent_history(
+        self, user_id: str, limit: int = 10
+    ) -> list[dict]:
+        """Return recent conversation history formatted for prompt building.
+
+        Args:
+            user_id: Target user.
+            limit: Maximum number of entries.
+
+        Returns:
+            List of dicts with ``role`` and ``content`` keys.
+        """
+        entries = self.store.get_recent_history(user_id, limit=limit)
+        history: list[dict] = []
+        for entry in entries:
+            query = entry.metadata.get("query", "")
+            response = entry.metadata.get("response", "")
+            if query:
+                history.append({"role": "user", "content": query})
+            if response:
+                history.append({"role": "assistant", "content": response})
+        return history
+
+    async def save_to_short_term(
+        self, user_id: str, query: str, response: str
+    ) -> None:
+        """Save a conversation exchange to short-term memory.
+
+        Thin async wrapper around :meth:`record_conversation`.
+        """
+        self.record_conversation(user_id, query, response)
+
+    async def search_memories(
+        self, user_id: str, query_vector, top_k: int = 5
+    ) -> list[dict]:
+        """Search user memories by vector similarity.
+
+        Args:
+            user_id: Target user.
+            query_vector: The query embedding (numpy array or list).
+            top_k: Maximum results.
+
+        Returns:
+            List of dicts with memory content and metadata.
+        """
+        if hasattr(query_vector, "tolist"):
+            qv = query_vector[0].tolist() if query_vector.ndim > 1 else query_vector.tolist()
+        else:
+            qv = query_vector
+        results = self.store.search_memory(user_id, qv, top_k=top_k)
+        return [
+            {
+                "id": m.id,
+                "content": m.content,
+                "type": m.type.value,
+                "importance": m.importance_score,
+                "timestamp": m.timestamp.isoformat(),
+            }
+            for m in results
+        ]
+
+    # ------------------------------------------------------------------
+    # Conversation recording
+    # ------------------------------------------------------------------
+
     def record_conversation(
         self, user_id: str, query: str, response: str
     ) -> None:
@@ -189,7 +258,7 @@ class MemoryManager:
     # Maintenance
     # ------------------------------------------------------------------
 
-    def run_maintenance(self, user_id: str) -> dict:
+    async def run_maintenance(self, user_id: str) -> dict:
         """Run a full maintenance cycle on a user's memory.
 
         Steps:
@@ -237,7 +306,7 @@ class MemoryManager:
             self.store.delete_memory(user_id, mem.id)
 
         # Step 3: Compress similar memories among the retained set
-        compressed = self.compressor.compress_memories(retained)
+        compressed = await self.compressor.compress_memories(retained)
         compressed_count = len(retained) - len(compressed)
 
         # Replace retained memories with compressed versions in the store
