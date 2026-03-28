@@ -37,6 +37,7 @@ class MemoryManager:
     # ------------------------------------------------------------------
 
     async def record_conversation(
+
         self, user_id: str, query: str, response: str
     ) -> None:
         """Record a conversation turn as short-term memory."""
@@ -171,7 +172,7 @@ class MemoryManager:
             await self.store.delete_memory(user_id, mem.id)
 
         # Step 3: Compress similar memories among the retained set
-        compressed = self.compressor.compress_memories(retained)
+        compressed = await self.compressor.compress_memories(retained)
         compressed_count = len(retained) - len(compressed)
 
         current_ids = {m.id for m in self.store.get_all_memories(user_id)}
