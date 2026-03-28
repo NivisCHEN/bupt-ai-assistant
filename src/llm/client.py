@@ -7,6 +7,12 @@ from typing import Optional
 
 from loguru import logger
 from openai import AsyncOpenAI
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 
 class LLMClient:
@@ -47,6 +53,15 @@ class LLMClient:
         messages.append({"role": "user", "content": prompt})
         return await self.generate_with_messages(messages)
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type(Exception),
+        before_sleep=lambda rs: logger.warning(
+            "LLM call failed (attempt {}), retrying...", rs.attempt_number,
+        ),
+        reraise=True,
+    )
     async def generate_with_messages(self, messages: list[dict]) -> str:
         """Generate a completion from an arbitrary message list.
 
