@@ -17,4 +17,4 @@ logs/
 *.log
 
 # Database files
-data/*.db
+data/*.db 

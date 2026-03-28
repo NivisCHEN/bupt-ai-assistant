@@ -88,6 +88,7 @@ class StatsResponse(BaseModel):
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
+    _token: str = Depends(validate_user_token),
     dialogue_manager: DialogueManager = Depends(get_dialogue_manager),
 ) -> ChatResponse:
     """Process an incoming chat message and return an AI response."""
@@ -119,7 +120,9 @@ async def health() -> dict:
 async def search_memories(
     user_id: str,
     body: MemorySearchRequest,
+
     token_user_id: str = Depends(validate_user_token),
+
     memory_manager: MemoryManager = Depends(get_memory_manager),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
 ) -> dict:
@@ -153,7 +156,9 @@ async def search_memories(
 async def get_history(
     user_id: str,
     limit: int = Query(default=10, ge=1, le=100),
+  claude/add-sqlite-persistence-KpJRU
     token_user_id: str = Depends(validate_user_token),
+
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> dict:
     """Return recent conversation history for a user."""
@@ -176,7 +181,9 @@ async def delete_memory(
     user_id: str,
     memory_id: str,
     confirmation_token: str = Query(..., description="Token to confirm deletion"),
+laude/add-sqlite-persistence-KpJRU
     token_user_id: str = Depends(validate_user_token),
+
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> dict:
     """Delete a specific memory entry for a user."""
@@ -212,6 +219,7 @@ async def delete_memory(
 
 @router.post("/api/admin/reindex", response_model=ReindexResponse)
 async def reindex(
+    _admin: str = Depends(require_admin_key),
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> ReindexResponse:
     """Trigger a full knowledge base reindex."""
@@ -235,6 +243,7 @@ async def crawl(
     _admin: str = Depends(require_admin_key),
 ) -> CrawlResponse:
     """Trigger a crawl for a specific data source."""
+
     supported_sources = {"news", "library", "courses", "notices", "faculty"}
 
     if source_name not in supported_sources:
@@ -255,6 +264,7 @@ async def crawl(
 
 @router.get("/api/admin/stats", response_model=StatsResponse)
 async def stats(
+    _admin: str = Depends(require_admin_key),
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> StatsResponse:
     """Return system-wide statistics."""
