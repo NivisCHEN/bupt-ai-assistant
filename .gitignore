@@ -1,2 +1,20 @@
 __pycache__/
 *.pyc
+
+# Environment and secrets
+.env
+*.pem
+*.key
+
+# Data directories (may contain user data or crawled content)
+data/raw/
+data/processed/
+data/indices/
+*.index
+
+# Logs
+logs/
+*.log
+
+# Database files
+data/*.db

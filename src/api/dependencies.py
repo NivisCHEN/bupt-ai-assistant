@@ -105,11 +105,13 @@ async def get_memory_store() -> MemoryStore:
     if "memory_store" not in _instances:
         embedding_service = await get_embedding_service()
         settings = await get_settings()
-        _instances["memory_store"] = MemoryStore(
+        store = MemoryStore(
             embedding_service=embedding_service,
             faiss_dimension=settings.embedding_dimension,
         )
-        logger.info("MemoryStore initialised")
+        await store.initialize()
+        _instances["memory_store"] = store
+        logger.info("MemoryStore initialised (SQLite-backed)")
     return _instances["memory_store"]
 
 

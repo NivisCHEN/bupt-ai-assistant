@@ -20,11 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class MemoryManager:
-    """Orchestrates the full memory lifecycle across tiers.
-
-    Acts as the primary facade that higher-level dialogue or API layers
-    should interact with for all memory-related operations.
-    """
+    """Orchestrates the full memory lifecycle across tiers."""
 
     def __init__(
         self,
@@ -32,15 +28,6 @@ class MemoryManager:
         compressor: MemoryCompressor,
         embedding_service,
     ) -> None:
-        """Initialise the memory manager.
-
-        Args:
-            store: The tiered MemoryStore instance.
-            compressor: The MemoryCompressor for merging and archival.
-            embedding_service: Service capable of encoding text into vectors
-                (must expose ``encode(texts) -> np.ndarray`` and
-                ``encode_query(query) -> np.ndarray``).
-        """
         self.store = store
         self.compressor = compressor
         self.embedding_service = embedding_service
@@ -49,21 +36,12 @@ class MemoryManager:
     # Conversation recording
     # ------------------------------------------------------------------
 
-    def record_conversation(
+    async def record_conversation(
         self, user_id: str, query: str, response: str
     ) -> None:
-        """Record a conversation turn as short-term memory.
-
-        Both the user query and the assistant response are stored as a
-        single combined entry so that the full context is preserved.
-
-        Args:
-            user_id: The user who initiated the conversation.
-            query: The user's query text.
-            response: The assistant's response text.
-        """
+        """Record a conversation turn as short-term memory."""
         content = f"User: {query}\nAssistant: {response}"
-        self.store.save_short_term(
+        await self.store.save_short_term(
             user_id=user_id,
             content=content,
             metadata={"query": query, "response": response},
@@ -74,24 +52,10 @@ class MemoryManager:
     # Promotion
     # ------------------------------------------------------------------
 
-    def promote_to_long_term(
+    async def promote_to_long_term(
         self, user_id: str, memory_id: str
     ) -> MemoryEntry:
-        """Promote a short-term memory to long-term storage.
-
-        The memory is re-saved as a long-term entry with an embedding
-        vector, and the original short-term entry is removed.
-
-        Args:
-            user_id: Owner of the memory.
-            memory_id: ID of the short-term entry to promote.
-
-        Returns:
-            The newly created long-term MemoryEntry.
-
-        Raises:
-            ValueError: If the memory is not found or is not short-term.
-        """
+        """Promote a short-term memory to long-term storage."""
         memories = self.store.get_all_memories(user_id, MemoryType.SHORT_TERM)
         target: Optional[MemoryEntry] = None
         for mem in memories:
@@ -104,8 +68,7 @@ class MemoryManager:
                 f"Short-term memory {memory_id} not found for user {user_id}"
             )
 
-        # Create a long-term entry preserving the original content
-        long_term_entry = self.store.save_long_term(
+        long_term_entry = await self.store.save_long_term(
             user_id=user_id,
             content=target.content,
             importance=max(target.importance_score, 0.6),
@@ -113,8 +76,7 @@ class MemoryManager:
             metadata={**target.metadata, "promoted_from": target.id},
         )
 
-        # Remove the original short-term entry
-        self.store.delete_memory(user_id, memory_id)
+        await self.store.delete_memory(user_id, memory_id)
         logger.info(
             "Promoted memory %s -> %s for user %s",
             memory_id,
@@ -130,20 +92,7 @@ class MemoryManager:
     async def extract_user_profile(
         self, user_id: str, history: list[MemoryEntry]
     ) -> dict:
-        """Extract user preferences and patterns from conversation history.
-
-        Uses the LLM (via the compressor's llm_client) to analyse the
-        conversation history and produce a structured profile.
-
-        Args:
-            user_id: The target user.
-            history: List of MemoryEntry objects representing past
-                conversations.
-
-        Returns:
-            A dict with keys ``preferences``, ``frequent_topics``, and
-            ``summary``.
-        """
+        """Extract user preferences and patterns from conversation history."""
         if not history:
             return {"preferences": {}, "frequent_topics": [], "summary": ""}
 
@@ -189,22 +138,8 @@ class MemoryManager:
     # Maintenance
     # ------------------------------------------------------------------
 
-    def run_maintenance(self, user_id: str) -> dict:
-        """Run a full maintenance cycle on a user's memory.
-
-        Steps:
-        1. Score importance for all memories.
-        2. Archive low-importance entries.
-        3. Compress similar memories via LLM summarisation.
-        4. Rebuild the FAISS index.
-
-        Args:
-            user_id: Target user.
-
-        Returns:
-            A stats dict with keys: ``total_before``, ``scored``,
-            ``archived``, ``compressed``, ``total_after``.
-        """
+    async def run_maintenance(self, user_id: str) -> dict:
+        """Run a full maintenance cycle on a user's memory."""
         all_memories = self.store.get_all_memories(user_id)
         total_before = len(all_memories)
 
@@ -221,7 +156,7 @@ class MemoryManager:
         for mem in all_memories:
             new_score = self.compressor.score_importance(mem, all_memories)
             try:
-                self.store.update_importance(
+                await self.store.update_importance(
                     user_id, mem.id, new_score - mem.importance_score
                 )
             except ValueError:
@@ -232,32 +167,27 @@ class MemoryManager:
         refreshed = self.store.get_all_memories(user_id)
         retained, archived = self.compressor.archive_low_importance(refreshed)
 
-        # Remove archived entries from the store
         for mem in archived:
-            self.store.delete_memory(user_id, mem.id)
+            await self.store.delete_memory(user_id, mem.id)
 
         # Step 3: Compress similar memories among the retained set
         compressed = self.compressor.compress_memories(retained)
         compressed_count = len(retained) - len(compressed)
 
-        # Replace retained memories with compressed versions in the store
-        # Remove the old retained entries and insert the compressed ones
         current_ids = {m.id for m in self.store.get_all_memories(user_id)}
         retained_ids = {m.id for m in retained}
-        # Only remove entries that were part of the retained set (they may
-        # have been merged into new compressed entries)
         for mid in retained_ids:
             if mid in current_ids:
-                self.store.delete_memory(user_id, mid)
+                await self.store.delete_memory(user_id, mid)
 
         # Insert compressed entries back
         for mem in compressed:
             if mem.type == MemoryType.SHORT_TERM:
-                self.store.save_short_term(
+                await self.store.save_short_term(
                     user_id, mem.content, metadata=mem.metadata
                 )
             elif mem.type == MemoryType.LONG_TERM:
-                self.store.save_long_term(
+                await self.store.save_long_term(
                     user_id,
                     mem.content,
                     importance=mem.importance_score,
@@ -266,7 +196,7 @@ class MemoryManager:
                 )
             elif mem.type == MemoryType.EPISODIC:
                 event_type = mem.metadata.get("event_type", "unknown")
-                self.store.save_episodic(
+                await self.store.save_episodic(
                     user_id, mem.content, event_type, metadata=mem.metadata
                 )
 
@@ -292,24 +222,7 @@ class MemoryManager:
     def retrieve_context(
         self, user_id: str, query: str, top_k: int = 5
     ) -> list[MemoryEntry]:
-        """Retrieve contextually relevant memories using hierarchical search.
-
-        Retrieval priority:
-        1. Recent short-term memories (conversation history).
-        2. High-importance long-term memories via vector search.
-        3. Episodic memories (task events) via vector search.
-
-        Results are merged and deduplicated by content similarity.
-
-        Args:
-            user_id: Target user.
-            query: The current user query.
-            top_k: Maximum number of memories to return.
-
-        Returns:
-            A deduplicated list of the most relevant MemoryEntry objects,
-            up to *top_k* items.
-        """
+        """Retrieve contextually relevant memories using hierarchical search."""
         results: list[MemoryEntry] = []
 
         # 1. Recent short-term memories
@@ -341,10 +254,8 @@ class MemoryManager:
                 seen_ids.add(mem.id)
                 unique.append(mem)
 
-        # Deduplicate by content similarity (remove near-duplicates)
         deduplicated = self._deduplicate_by_similarity(unique)
 
-        # Sort by importance descending, then by recency
         deduplicated.sort(
             key=lambda m: (m.importance_score, m.timestamp),
             reverse=True,
@@ -358,23 +269,10 @@ class MemoryManager:
     def _deduplicate_by_similarity(
         self, memories: list[MemoryEntry], threshold: float = 0.9
     ) -> list[MemoryEntry]:
-        """Remove near-duplicate memories based on content similarity.
-
-        Uses embedding vectors when available; falls back to keeping all
-        entries if vectors are missing.
-
-        Args:
-            memories: List of candidate memories.
-            threshold: Cosine similarity above which an entry is considered
-                a duplicate and dropped.
-
-        Returns:
-            Deduplicated list of memories.
-        """
+        """Remove near-duplicate memories based on content similarity."""
         if len(memories) <= 1:
             return list(memories)
 
-        # Ensure all entries have vectors for comparison
         for mem in memories:
             if mem.vector is None:
                 try:

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from config.settings import settings
+from src.api.auth import validate_user_token
 from src.api.dependencies import (
     get_dialogue_manager,
     get_embedding_service,
@@ -21,6 +21,20 @@ from src.memory.store import MemoryStore
 from src.models import ChatRequest, ChatResponse
 
 router = APIRouter()
+
+_GENERIC_ERROR = "服务内部错误，请稍后再试"
+
+
+def _safe_detail(exc: Exception) -> str:
+    """Return error detail suitable for the client.
+
+    In debug mode the original exception message is exposed; in
+    production a generic message is returned to prevent information
+    leakage.
+    """
+    if settings.app.debug:
+        return str(exc)
+    return _GENERIC_ERROR
 
 
 # ---------------------------------------------------------------------------
@@ -75,17 +89,13 @@ async def chat(
     request: ChatRequest,
     dialogue_manager: DialogueManager = Depends(get_dialogue_manager),
 ) -> ChatResponse:
-    """Process an incoming chat message and return an AI response.
-
-    Delegates to the DialogueManager which orchestrates intent routing,
-    knowledge retrieval, memory lookup, and LLM generation.
-    """
+    """Process an incoming chat message and return an AI response."""
     try:
         response = await dialogue_manager.handle_message(request)
         return response
     except Exception as exc:
         logger.exception("Chat endpoint error for user {}", request.user_id)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=_safe_detail(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +110,7 @@ async def health() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Memory endpoints
+# Memory endpoints (token-authenticated with user-id binding)
 # ---------------------------------------------------------------------------
 
 
@@ -108,14 +118,14 @@ async def health() -> dict:
 async def search_memories(
     user_id: str,
     body: MemorySearchRequest,
+    token_user_id: str = Depends(validate_user_token),
     memory_manager: MemoryManager = Depends(get_memory_manager),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
 ) -> dict:
-    """Search a user's memories by semantic similarity.
+    """Search a user's memories by semantic similarity."""
+    if token_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
-    Encodes the query into an embedding and retrieves the top-k most
-    relevant memories from the user's memory store.
-    """
     try:
         query_vector = embedding_service.encode_query(body.query)
         if query_vector.size == 0:
@@ -135,20 +145,20 @@ async def search_memories(
         }
     except Exception as exc:
         logger.exception("Memory search failed for user {}", user_id)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=_safe_detail(exc)) from exc
 
 
 @router.get("/api/memory/{user_id}/history")
 async def get_history(
     user_id: str,
     limit: int = Query(default=10, ge=1, le=100),
+    token_user_id: str = Depends(validate_user_token),
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> dict:
-    """Return recent conversation history for a user.
+    """Return recent conversation history for a user."""
+    if token_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
-    The most recent short-term memory entries are returned, sorted by
-    timestamp descending.
-    """
     try:
         entries = memory_store.get_recent_history(user_id, limit=limit)
         return {
@@ -157,7 +167,7 @@ async def get_history(
         }
     except Exception as exc:
         logger.exception("History retrieval failed for user {}", user_id)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=_safe_detail(exc)) from exc
 
 
 @router.delete("/api/memory/{user_id}/{memory_id}")
@@ -165,22 +175,22 @@ async def delete_memory(
     user_id: str,
     memory_id: str,
     confirmation_token: str = Query(..., description="Token to confirm deletion"),
+    token_user_id: str = Depends(validate_user_token),
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> dict:
-    """Delete a specific memory entry for a user.
+    """Delete a specific memory entry for a user."""
+    if token_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
-    Requires a confirmation token to prevent accidental deletion.
-    The token should match the pattern ``confirm-delete-{memory_id}``.
-    """
     expected_token = f"confirm-delete-{memory_id}"
     if confirmation_token != expected_token:
         raise HTTPException(
             status_code=403,
             detail="Invalid confirmation token. "
-            f"Expected format: confirm-delete-<memory_id>",
+            "Expected format: confirm-delete-<memory_id>",
         )
 
-    deleted = memory_store.delete_memory(user_id, memory_id)
+    deleted = await memory_store.delete_memory(user_id, memory_id)
     if not deleted:
         raise HTTPException(
             status_code=404,
@@ -203,12 +213,7 @@ async def delete_memory(
 async def reindex(
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> ReindexResponse:
-    """Trigger a full knowledge base reindex.
-
-    Rebuilds the FAISS indices for all users currently held in the
-    memory store.  This is a protected endpoint intended for
-    administrators.
-    """
+    """Trigger a full knowledge base reindex."""
     try:
         user_ids = list(memory_store._memories.keys())
         for uid in user_ids:
@@ -220,16 +225,12 @@ async def reindex(
         )
     except Exception as exc:
         logger.exception("Reindex failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=_safe_detail(exc)) from exc
 
 
 @router.post("/api/admin/crawl/{source_name}", response_model=CrawlResponse)
 async def crawl(source_name: str) -> CrawlResponse:
-    """Trigger a crawl for a specific data source.
-
-    Enqueues a crawl job for the named source (e.g. ``news``,
-    ``library``, ``courses``).  The actual crawl runs asynchronously.
-    """
+    """Trigger a crawl for a specific data source."""
     supported_sources = {"news", "library", "courses", "notices", "faculty"}
 
     if source_name not in supported_sources:
@@ -241,8 +242,6 @@ async def crawl(source_name: str) -> CrawlResponse:
 
     logger.info("Crawl triggered for source: {}", source_name)
 
-    # In a production system this would enqueue a background task.
-    # For now we return an acknowledgement.
     return CrawlResponse(
         status="accepted",
         source_name=source_name,
@@ -254,11 +253,7 @@ async def crawl(source_name: str) -> CrawlResponse:
 async def stats(
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> StatsResponse:
-    """Return system-wide statistics.
-
-    Includes total memory count, number of tracked users, and per-user
-    FAISS index sizes.
-    """
+    """Return system-wide statistics."""
     try:
         user_ids = list(memory_store._memories.keys())
         total_memories = sum(
@@ -277,4 +272,4 @@ async def stats(
         )
     except Exception as exc:
         logger.exception("Stats retrieval failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=_safe_detail(exc)) from exc
