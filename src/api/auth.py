@@ -11,12 +11,20 @@ import hmac
 import hashlib
 import os
 import time
+import warnings
 
 from fastapi import HTTPException, Header
 
 
 # The secret MUST be set in production via the USER_TOKEN_SECRET env var.
 _SECRET = os.getenv("USER_TOKEN_SECRET", "")
+
+if not _SECRET:
+    warnings.warn(
+        "USER_TOKEN_SECRET is not set — token authentication is insecure! "
+        "Set this environment variable before deploying to production.",
+        stacklevel=1,
+    )
 
 # Token validity window in seconds (default 24 hours).
 _TOKEN_TTL = int(os.getenv("USER_TOKEN_TTL", "86400"))

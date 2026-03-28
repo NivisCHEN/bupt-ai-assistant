@@ -34,7 +34,8 @@ async def memory_store(mock_embedding_service, tmp_path):
         db_path=db_path,
     )
     await store.initialize()
-    return store
+    yield store
+    await store.close()
 
 
 class TestSaveShortTerm:
@@ -203,6 +204,8 @@ class TestSQLitePersistence:
         await store1.save_short_term("user1", "persisted message")
         await store1.save_long_term("user1", "important fact", importance=0.9)
 
+        await store1.close()
+
         # Second instance: read data back
         store2 = MemoryStore(
             embedding_service=mock_embedding_service,
@@ -212,6 +215,7 @@ class TestSQLitePersistence:
         await store2.initialize()
 
         all_memories = store2.get_all_memories("user1")
+        await store2.close()
         assert len(all_memories) == 2
         contents = {m.content for m in all_memories}
         assert "persisted message" in contents
@@ -229,6 +233,7 @@ class TestSQLitePersistence:
         await store1.initialize()
         entry = await store1.save_short_term("user1", "to be deleted")
         await store1.delete_memory("user1", entry.id)
+        await store1.close()
 
         store2 = MemoryStore(
             embedding_service=mock_embedding_service,
@@ -236,7 +241,9 @@ class TestSQLitePersistence:
             db_path=db_path,
         )
         await store2.initialize()
-        assert store2.get_all_memories("user1") == []
+        result = store2.get_all_memories("user1")
+        await store2.close()
+        assert result == []
 
 
 class TestFAISSIndexAlignment:

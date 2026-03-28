@@ -7,6 +7,7 @@ a SQLite database so that data survives process restarts.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -91,27 +92,34 @@ class MemoryStore:
         # Per-user FAISS stores for vector retrieval
         self.user_faiss_stores: dict[str, FAISSStore] = {}
 
-        # Explicit FAISS-row -> memory-id mapping per user (Fix #4)
+        # Explicit FAISS-row -> memory-id mapping per user
         self._index_id_map: dict[str, list[str]] = {}
 
         # In-memory cache for fast reads (populated from DB on init)
         self._memories: dict[str, list[MemoryEntry]] = {}
 
         # FAISS index persistence directory
-        self._index_dir = os.getenv(
-            "FAISS_INDEX_DIR", "data/indices"
-        )
+        self._index_dir = os.getenv("FAISS_INDEX_DIR", "data/indices")
+
+        # Persistent DB connection (opened in initialize, closed in close)
+        self._db: aiosqlite.Connection | None = None
+
+        # Serialise all writes to avoid SQLite "database is locked" errors
+        self._write_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
     async def initialize(self) -> None:
-        """Create the database schema and load existing data into memory."""
+        """Open the database, create schema, and load existing data."""
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.executescript(_SCHEMA_SQL)
-            await db.commit()
+        self._db = await aiosqlite.connect(self.db_path)
+        # WAL mode allows concurrent reads while writes are in progress
+        await self._db.execute("PRAGMA journal_mode=WAL")
+        await self._db.execute("PRAGMA synchronous=NORMAL")
+        await self._db.executescript(_SCHEMA_SQL)
+        await self._db.commit()
 
         await self._load_all_from_db()
         self._rebuild_all_indices()
@@ -121,17 +129,23 @@ class MemoryStore:
             len(self._memories),
         )
 
+    async def close(self) -> None:
+        """Close the database connection."""
+        if self._db is not None:
+            await self._db.close()
+            self._db = None
+            logger.info("MemoryStore database connection closed")
+
     async def _load_all_from_db(self) -> None:
         """Populate the in-memory cache from the database."""
+        assert self._db is not None
         self._memories.clear()
-        async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute(
-                "SELECT id, user_id, type, content, summary, importance_score, "
-                "vector, metadata, timestamp, source_ref FROM memories "
-                "ORDER BY timestamp ASC"
-            )
-            rows = await cursor.fetchall()
-
+        cursor = await self._db.execute(
+            "SELECT id, user_id, type, content, summary, importance_score, "
+            "vector, metadata, timestamp, source_ref FROM memories "
+            "ORDER BY timestamp ASC"
+        )
+        rows = await cursor.fetchall()
         for row in rows:
             entry = _row_to_entry(row)
             self._memories.setdefault(entry.user_id, []).append(entry)
@@ -142,12 +156,13 @@ class MemoryStore:
             self._build_user_index(user_id)
 
     # ------------------------------------------------------------------
-    # DB helpers
+    # DB helpers — all writes serialised via _write_lock
     # ------------------------------------------------------------------
 
     async def _insert_entry(self, entry: MemoryEntry) -> None:
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
+        assert self._db is not None
+        async with self._write_lock:
+            await self._db.execute(
                 "INSERT INTO memories "
                 "(id, user_id, type, content, summary, importance_score, "
                 "vector, metadata, timestamp, source_ref) "
@@ -165,22 +180,26 @@ class MemoryStore:
                     entry.source_ref,
                 ),
             )
-            await db.commit()
+            await self._db.commit()
 
     async def _delete_entry_db(self, memory_id: str) -> None:
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
-            await db.commit()
+        assert self._db is not None
+        async with self._write_lock:
+            await self._db.execute(
+                "DELETE FROM memories WHERE id = ?", (memory_id,)
+            )
+            await self._db.commit()
 
     async def _update_importance_db(
         self, memory_id: str, new_score: float
     ) -> None:
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
+        assert self._db is not None
+        async with self._write_lock:
+            await self._db.execute(
                 "UPDATE memories SET importance_score = ? WHERE id = ?",
                 (new_score, memory_id),
             )
-            await db.commit()
+            await self._db.commit()
 
     # ------------------------------------------------------------------
     # Save helpers
@@ -301,7 +320,6 @@ class MemoryStore:
         qv = np.array(query_vector, dtype=np.float32)
         distances, indices = faiss_store.search(qv, top_k=top_k * 3)
 
-        # Build a quick lookup by memory id
         id_map = self._index_id_map.get(user_id, [])
         memory_by_id: dict[str, MemoryEntry] = {
             m.id: m for m in self._memories.get(user_id, [])
@@ -374,7 +392,6 @@ class MemoryStore:
             m for m in self._memories.get(user_id, []) if m.vector is not None
         ]
         store = FAISSStore(dimension=self.faiss_dimension)
-        # Maintain explicit mapping: FAISS row index -> memory id
         self._index_id_map[user_id] = [m.id for m in vectored]
         if vectored:
             matrix = np.array(
@@ -397,13 +414,12 @@ class MemoryStore:
         try:
             store.save_index(path)
         except Exception:
-            logger.warning("Failed to persist FAISS index for user %s", user_id, exc_info=True)
+            logger.warning(
+                "Failed to persist FAISS index for user %s", user_id, exc_info=True
+            )
 
     def _load_user_index(self, user_id: str) -> bool:
-        """Attempt to load a user's FAISS index from disk.
-
-        Returns True if the index was loaded successfully.
-        """
+        """Attempt to load a user's FAISS index from disk."""
         path = os.path.join(self._index_dir, f"user_{user_id}.index")
         if not os.path.exists(path):
             return False
@@ -413,5 +429,7 @@ class MemoryStore:
             self.user_faiss_stores[user_id] = store
             return True
         except Exception:
-            logger.warning("Failed to load FAISS index for user %s", user_id, exc_info=True)
+            logger.warning(
+                "Failed to load FAISS index for user %s", user_id, exc_info=True
+            )
             return False

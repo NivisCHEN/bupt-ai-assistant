@@ -49,6 +49,55 @@ class MemoryManager:
         logger.debug("Recorded conversation for user %s", user_id)
 
     # ------------------------------------------------------------------
+    # DialogueManager interface — thin wrappers expected by dialogue/manager.py
+    # ------------------------------------------------------------------
+
+    async def get_recent_history(
+        self, user_id: str, limit: int = 10
+    ) -> list[dict]:
+        """Return recent conversation turns as role/content dicts."""
+        entries = self.store.get_recent_history(user_id, limit=limit)
+        history: list[dict] = []
+        for entry in entries:
+            query = entry.metadata.get("query", "")
+            response = entry.metadata.get("response", "")
+            if query:
+                history.append({"role": "user", "content": query})
+            if response:
+                history.append({"role": "assistant", "content": response})
+        return history
+
+    async def save_to_short_term(
+        self, user_id: str, query: str, response: str
+    ) -> None:
+        """Persist a query/response pair to short-term memory."""
+        await self.record_conversation(user_id, query, response)
+
+    async def search_memories(
+        self, user_id: str, query_vector, top_k: int = 5
+    ) -> list[dict]:
+        """Search user memories and return plain dicts for the dialogue layer."""
+        if hasattr(query_vector, "ndim"):
+            qv = (
+                query_vector[0].tolist()
+                if query_vector.ndim > 1
+                else query_vector.tolist()
+            )
+        else:
+            qv = list(query_vector)
+        results = self.store.search_memory(user_id, qv, top_k=top_k)
+        return [
+            {
+                "id": m.id,
+                "content": m.content,
+                "type": m.type.value,
+                "importance": m.importance_score,
+                "timestamp": m.timestamp.isoformat(),
+            }
+            for m in results
+        ]
+
+    # ------------------------------------------------------------------
     # Promotion
     # ------------------------------------------------------------------
 
