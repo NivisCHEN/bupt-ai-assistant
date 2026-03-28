@@ -20,6 +20,7 @@ dependencies = [
     "apscheduler>=3.10.0",
     "jieba>=0.42.1",
     "loguru>=0.7.0",
+    "tenacity>=8.2.0",
 ]
 
 [project.optional-dependencies]
