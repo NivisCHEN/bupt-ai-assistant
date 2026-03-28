@@ -14,7 +14,6 @@ from src.api.dependencies import (
     get_memory_manager,
     get_memory_store,
     require_admin_key,
-    validate_user_token,
 )
 from src.dialogue.manager import DialogueManager
 from src.embedding.service import EmbeddingService
@@ -239,8 +238,10 @@ async def reindex(
 
 
 @router.post("/api/admin/crawl/{source_name}", response_model=CrawlResponse)
-
-async def crawl(source_name: str) -> CrawlResponse:
+async def crawl(
+    source_name: str,
+    _admin: str = Depends(require_admin_key),
+) -> CrawlResponse:
     """Trigger a crawl for a specific data source."""
 
     supported_sources = {"news", "library", "courses", "notices", "faculty"}
