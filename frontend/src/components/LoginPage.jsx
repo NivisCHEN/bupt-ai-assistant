@@ -10,7 +10,7 @@ export default function LoginPage({ onLogin, t }) {
   const handleSubmit = () => {
     if (!studentId.trim()) return;
     const token = `${studentId}:${Math.floor(Date.now() / 1000)}:demo_signature_placeholder`;
-    onLogin({ userId: studentId, nickname: nickname || studentId, token });
+    onLogin({ userId: studentId, nickname: nickname || studentId, token, password });
   };
 
   return (

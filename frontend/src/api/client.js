@@ -50,5 +50,28 @@ export const createApiClient = (baseUrl, token) => {
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
       return res.json();
     },
+    portalLogin: async (username, password) => {
+      const res = await fetch(`${baseUrl}/api/portal/login`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Portal login failed: ${res.status}`);
+      }
+      return res.json();
+    },
+    portalCrawl: async (username) => {
+      const res = await fetch(
+        `${baseUrl}/api/portal/crawl?username=${encodeURIComponent(username)}`,
+        { method: "POST", headers: headers() }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Portal crawl failed: ${res.status}`);
+      }
+      return res.json();
+    },
   };
 };
