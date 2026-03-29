@@ -17,4 +17,8 @@ logs/
 *.log
 
 # Database files
-data/*.db 
+data/*.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
