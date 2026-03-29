@@ -383,8 +383,16 @@ export default function App() {
 
   // ── Login handler ──────────────────────────────────────────
   const handleLogin = (userData) => {
-    setUser(userData);
+    const { password, ...userWithoutPassword } = userData;
+    setUser(userWithoutPassword);
     if (sessions.length === 0) createSession();
+
+    // 后台自动登录北邮门户，不阻塞用户操作
+    if (password && api) {
+      api.portalLogin(userData.userId, password).catch(() => {
+        // 门户登录失败不影响正常使用
+      });
+    }
   };
 
   // ── Render ─────────────────────────────────────────────────

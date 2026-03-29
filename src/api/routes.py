@@ -25,6 +25,9 @@ router = APIRouter()
 
 _GENERIC_ERROR = "服务内部错误，请稍后再试"
 
+# In-memory store for portal cookies (production: use Redis with TTL)
+_portal_cookies: dict[str, dict] = {}
+
 
 def _safe_detail(exc: Exception) -> str:
     """Return error detail suitable for the client.
@@ -68,6 +71,20 @@ class CrawlResponse(BaseModel):
 
     status: str
     source_name: str
+    message: str
+
+
+class PortalLoginRequest(BaseModel):
+    """Body for BUPT portal login."""
+
+    username: str
+    password: str
+
+
+class PortalLoginResponse(BaseModel):
+    """Response after portal login attempt."""
+
+    status: str
     message: str
 
 
@@ -210,6 +227,53 @@ laude/add-sqlite-persistence-KpJRU
         "user_id": user_id,
         "memory_id": memory_id,
     }
+
+
+# ---------------------------------------------------------------------------
+# Portal authentication endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/portal/login", response_model=PortalLoginResponse)
+async def portal_login(
+    request: PortalLoginRequest,
+    _token: str = Depends(validate_user_token),
+) -> PortalLoginResponse:
+    """用北邮统一认证账号密码登录，解锁内部数据源爬取。"""
+    try:
+        from src.crawler.auth import login_bupt_portal
+
+        cookies = await login_bupt_portal(request.username, request.password)
+        _portal_cookies[request.username] = cookies
+        return PortalLoginResponse(status="ok", message="登录成功")
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Portal login failed for {}", request.username)
+        raise HTTPException(status_code=500, detail=_safe_detail(exc)) from exc
+
+
+@router.post("/api/portal/crawl")
+async def crawl_portal(
+    username: str = Query(...),
+    _token: str = Depends(validate_user_token),
+) -> dict:
+    """使用已认证的 cookies 爬取需要登录的内部数据源。"""
+    cookies = _portal_cookies.get(username)
+    if not cookies:
+        raise HTTPException(status_code=401, detail="请先登录北邮门户")
+
+    from src.crawler.base import BUPT_DATA_SOURCES
+    from src.crawler.spider import BUPTSpider
+
+    auth_sources = [s for s in BUPT_DATA_SOURCES if s.requires_auth]
+    results = {}
+    for source in auth_sources:
+        spider = BUPTSpider(source=source, cookies=cookies)
+        docs = await spider.crawl()
+        results[source.name] = len(docs)
+
+    return {"status": "ok", "crawled": results}
 
 
 # ---------------------------------------------------------------------------
