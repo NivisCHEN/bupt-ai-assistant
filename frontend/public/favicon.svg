@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="50" fill="url(#g)"/>
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#004B87"/>
+      <stop offset="50%" stop-color="#0072CE"/>
+      <stop offset="100%" stop-color="#00A3E0"/>
+    </linearGradient>
+  </defs>
+  <text x="50" y="62" text-anchor="middle" fill="#fff" font-size="42" font-weight="700" font-family="serif">邮</text>
+</svg>
