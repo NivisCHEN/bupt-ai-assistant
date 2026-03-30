@@ -184,9 +184,9 @@ def build_and_save_index(
 
     if not chunks:
         logger.warning("No chunks to index. Writing empty index.")
-        store = FAISSStore(dimension=1024)
+        store = FAISSStore(dimension=512)
         import numpy as np
-        store.build_index(np.empty((0, 1024), dtype=np.float32))
+        store.build_index(np.empty((0, 512), dtype=np.float32))
         store.save_index(index_path)
         Path(metadata_path).write_text("[]", encoding="utf-8")
         return

@@ -32,10 +32,10 @@ class LLMSettings(BaseSettings):
 
 
 class EmbeddingSettings(BaseSettings):
-    """Settings for the text-embedding model (BGE-M3)."""
+    """Settings for the text-embedding model (bge-small-zh-v1.5)."""
 
-    model_name: str = "BAAI/bge-m3"
-    dimension: int = 1024
+    model_name: str = "BAAI/bge-small-zh-v1.5"
+    dimension: int = 512
     device: str = "cpu"
     batch_size: int = 32
 

@@ -9,13 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
-    """Embedding service using SentenceTransformer models (default: BGE-M3)."""
+    """Embedding service using SentenceTransformer models (default: bge-small-zh-v1.5)."""
 
     def __init__(
         self,
-        model_name: str = "BAAI/bge-m3",
+        model_name: str = "BAAI/bge-small-zh-v1.5",
         device: str = "cpu",
-        dimension: int = 1024,
+        dimension: int = 512,
     ) -> None:
         self.model_name = model_name
         self.device = device
