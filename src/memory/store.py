@@ -82,7 +82,7 @@ class MemoryStore:
     def __init__(
         self,
         embedding_service,
-        faiss_dimension: int = 1024,
+        faiss_dimension: int = 512,
         db_path: str | None = None,
     ) -> None:
         self.embedding_service = embedding_service
