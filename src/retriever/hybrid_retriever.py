@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any
 
 import jieba
@@ -29,6 +30,7 @@ class HybridRetriever:
         self.bm25_weight = bm25_weight
         self.dense_weight = dense_weight
 
+        self._lock = threading.Lock()
         self._bm25: BM25Okapi | None = None
         self._tokenized_corpus: list[list[str]] = []
         self._documents: list[dict[str, Any]] = []
@@ -48,18 +50,19 @@ class HybridRetriever:
             documents: List of dicts with ``content`` (str) and optional
                 ``id``, ``metadata`` fields.
         """
-        if not documents:
-            self._bm25 = None
-            self._tokenized_corpus = []
-            self._documents = []
-            return
+        with self._lock:
+            if not documents:
+                self._bm25 = None
+                self._tokenized_corpus = []
+                self._documents = []
+                return
 
-        self._documents = documents
-        self._tokenized_corpus = [
-            list(jieba.lcut(doc.get("content", ""))) for doc in documents
-        ]
-        self._bm25 = BM25Okapi(self._tokenized_corpus)
-        logger.info("BM25 index built with %d documents", len(documents))
+            self._documents = documents
+            self._tokenized_corpus = [
+                list(jieba.lcut(doc.get("content", ""))) for doc in documents
+            ]
+            self._bm25 = BM25Okapi(self._tokenized_corpus)
+            logger.info("BM25 index built with %d documents", len(documents))
 
     # ------------------------------------------------------------------
     # Retrieval

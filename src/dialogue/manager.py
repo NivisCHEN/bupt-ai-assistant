@@ -168,12 +168,17 @@ class DialogueManager:
             ``url``, and ``score``.
         """
         try:
-            results = await self.retriever.search(  # type: ignore[union-attr]
-                query=query,
-                query_vector=query_vec,
-                index_name="school",
-            )
-            return results if isinstance(results, list) else []
+            results = self.retriever.retrieve(query=query, top_k=10)
+            return [
+                {
+                    "id": r.get("id", ""),
+                    "title": r.get("metadata", {}).get("title", ""),
+                    "snippet": r.get("content", "")[:200],
+                    "url": r.get("metadata", {}).get("source_url", ""),
+                    "score": r.get("score", 0.0),
+                }
+                for r in results
+            ]
         except Exception:
             logger.warning("Knowledge retrieval failed for query: {}", query)
             return []

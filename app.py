@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -20,6 +21,44 @@ from src.api.routes import router
 from src.scheduler.background import BackgroundScheduler
 
 # ---------------------------------------------------------------------------
+# Background scheduler instance
+# ---------------------------------------------------------------------------
+
+_scheduler: BackgroundScheduler | None = None
+
+# ---------------------------------------------------------------------------
+# Lifespan context manager
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialise all services on startup; clean up on shutdown."""
+    global _scheduler
+
+    logger.info("Starting BUPT Campus AI Assistant...")
+    await init_all()
+
+    memory_manager = await get_memory_manager()
+    embedding_service = await get_embedding_service()
+    _scheduler = BackgroundScheduler(
+        memory_manager=memory_manager,
+        embedding_service=embedding_service,
+    )
+    _scheduler.start()
+    logger.info("Application startup complete")
+
+    yield
+
+    logger.info("Shutting down BUPT Campus AI Assistant...")
+    if _scheduler is not None:
+        _scheduler.stop()
+        _scheduler = None
+    await shutdown_all()
+    logger.info("Application shutdown complete")
+
+
+# ---------------------------------------------------------------------------
 # Application factory
 # ---------------------------------------------------------------------------
 
@@ -30,6 +69,7 @@ app = FastAPI(
         "任务执行等功能的 AI 对话系统。"
     ),
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Include API routes
@@ -48,48 +88,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Admin-Key", "X-User-Token"],
 )
-
-# ---------------------------------------------------------------------------
-# Background scheduler instance (created at module level, started on startup)
-# ---------------------------------------------------------------------------
-
-_scheduler: BackgroundScheduler | None = None
-
-# ---------------------------------------------------------------------------
-# Lifecycle events
-# ---------------------------------------------------------------------------
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    """Initialise all services and start the background scheduler."""
-    global _scheduler
-
-    logger.info("Starting BUPT Campus AI Assistant...")
-    await init_all()
-
-    # Wire up the background scheduler
-    memory_manager = await get_memory_manager()
-    embedding_service = await get_embedding_service()
-    _scheduler = BackgroundScheduler(
-        memory_manager=memory_manager,
-        embedding_service=embedding_service,
-    )
-    _scheduler.start()
-    logger.info("Application startup complete")
-
-
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    """Stop the background scheduler and clean up services."""
-    global _scheduler
-
-    logger.info("Shutting down BUPT Campus AI Assistant...")
-    if _scheduler is not None:
-        _scheduler.stop()
-        _scheduler = None
-    await shutdown_all()
-    logger.info("Application shutdown complete")
 
 
 # ---------------------------------------------------------------------------

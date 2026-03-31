@@ -30,7 +30,14 @@ class EmbeddingService:
 
         logger.info("Loading embedding model %s on %s ...", self.model_name, self.device)
         self._model = SentenceTransformer(self.model_name, device=self.device)
-        logger.info("Embedding model loaded.")
+        actual_dim = self._model.get_sentence_embedding_dimension()
+        if actual_dim and actual_dim != self.dimension:
+            logger.warning(
+                "Configured dim=%d but model produces dim=%d, auto-correcting",
+                self.dimension, actual_dim,
+            )
+            self.dimension = actual_dim
+        logger.info("Embedding model loaded (dim=%d).", self.dimension)
 
     def encode(self, texts: list[str], batch_size: int = 32) -> np.ndarray:
         """Encode a list of texts into normalized embeddings.

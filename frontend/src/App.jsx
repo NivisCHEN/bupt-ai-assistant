@@ -41,6 +41,7 @@ export default function App() {
   const abortRef = useRef(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const pendingMessageRef = useRef(null);
 
   const t = TRANSLATIONS[settings.lang] || TRANSLATIONS.zh;
 
@@ -65,10 +66,25 @@ export default function App() {
     if (!user) return;
     const save = debounce(() => {
       try {
+        // Trim to most recent 50 sessions to avoid exceeding localStorage quota
+        const trimmedSessions = sessions.slice(0, 50);
+        const trimmedMessages = {};
+        for (const s of trimmedSessions) {
+          if (messages[s.id]) trimmedMessages[s.id] = messages[s.id];
+        }
         localStorage.setItem("xiaoqyou_state", JSON.stringify({
-          user, settings, sessions, activeSessionId, messages, userProfile,
+          user, settings, sessions: trimmedSessions, activeSessionId,
+          messages: trimmedMessages, userProfile,
         }));
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        // Quota exceeded — clear old data and retry with minimal state
+        try {
+          localStorage.setItem("xiaoqyou_state", JSON.stringify({
+            user, settings, sessions: sessions.slice(0, 10),
+            activeSessionId, messages: {}, userProfile,
+          }));
+        } catch { /* give up */ }
+      }
     }, 500);
     save();
     return () => save.cancel();
@@ -122,12 +138,22 @@ export default function App() {
     setSidebarOpen(false);
   }, []);
 
+  // ── Send pending message after session creation ─────────────
+  useEffect(() => {
+    if (activeSessionId && pendingMessageRef.current) {
+      const text = pendingMessageRef.current;
+      pendingMessageRef.current = null;
+      sendMessage(text);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSessionId]);
+
   // ── Send message ───────────────────────────────────────────
   const sendMessage = useCallback(async (text) => {
     if (!text.trim() || isGenerating || !user) return;
     if (!activeSessionId) {
+      pendingMessageRef.current = text;
       createSession();
-      setTimeout(() => sendMessage(text), 100);
       return;
     }
 

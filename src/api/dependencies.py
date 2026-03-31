@@ -153,12 +153,10 @@ async def get_dialogue_manager() -> DialogueManager:
         router = IntentRouter(llm_client=llm_client)
         prompt_builder = PromptBuilder()
 
-        # Dedicated school-level FAISS store for knowledge retrieval
-        # (separate from per-user memory stores)
-        school_faiss_store = FAISSStore(dimension=settings.embedding_dimension)
+        school_faiss_store = FAISSStore(dimension=app_settings.embedding.dimension)
         retriever = HybridRetriever(
-            embedding_service=embedding_service,
             faiss_store=school_faiss_store,
+            embedding_service=embedding_service,
         )
 
         _instances["dialogue_manager"] = DialogueManager(
