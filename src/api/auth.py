@@ -20,11 +20,19 @@ from fastapi import HTTPException, Header
 _SECRET = os.getenv("USER_TOKEN_SECRET", "")
 
 if not _SECRET:
-    warnings.warn(
-        "USER_TOKEN_SECRET is not set — token authentication is insecure! "
-        "Set this environment variable before deploying to production.",
-        stacklevel=1,
-    )
+    _is_debug = os.getenv("BUPT_APP__DEBUG", "").lower() in ("true", "1")
+    if _is_debug:
+        _SECRET = "insecure-dev-secret-do-not-use-in-production"
+        warnings.warn(
+            "USER_TOKEN_SECRET is not set — using insecure dev fallback. "
+            "Set this environment variable before deploying to production.",
+            stacklevel=1,
+        )
+    else:
+        raise RuntimeError(
+            "USER_TOKEN_SECRET must be set in production. "
+            "Set BUPT_APP__DEBUG=true to use a dev fallback."
+        )
 
 # Token validity window in seconds (default 24 hours).
 _TOKEN_TTL = int(os.getenv("USER_TOKEN_TTL", "86400"))

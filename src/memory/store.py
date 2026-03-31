@@ -11,7 +11,9 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+
+_UTC = timezone.utc
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -71,7 +73,7 @@ def _row_to_entry(row: aiosqlite.Row) -> MemoryEntry:
         importance_score=row[5] or 0.0,
         vector=_deserialize_vector(row[6]),
         metadata=json.loads(row[7]) if row[7] else {},
-        timestamp=datetime.fromisoformat(row[8]) if row[8] else datetime.utcnow(),
+        timestamp=datetime.fromisoformat(row[8]) if row[8] else datetime.now(tz=_UTC),
         source_ref=row[9],
     )
 
@@ -217,13 +219,14 @@ class MemoryStore:
             type=MemoryType.SHORT_TERM,
             content=content,
             summary=content[:120],
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(tz=_UTC),
             importance_score=0.5,
             user_id=user_id,
             metadata=metadata or {},
         )
-        self._memories.setdefault(user_id, []).append(entry)
+        # Write DB first — on failure, in-memory cache stays consistent
         await self._insert_entry(entry)
+        self._memories.setdefault(user_id, []).append(entry)
         logger.debug("Saved short-term memory %s for user %s", entry.id, user_id)
         return entry
 
@@ -242,15 +245,15 @@ class MemoryStore:
             type=MemoryType.LONG_TERM,
             content=content,
             summary=content[:120],
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(tz=_UTC),
             importance_score=max(0.0, min(1.0, importance)),
             source_ref=source_ref,
             vector=vector,
             user_id=user_id,
             metadata=metadata or {},
         )
-        self._memories.setdefault(user_id, []).append(entry)
         await self._insert_entry(entry)
+        self._memories.setdefault(user_id, []).append(entry)
         self._build_user_index(user_id)
         self._persist_user_index(user_id)
         logger.debug("Saved long-term memory %s for user %s", entry.id, user_id)
@@ -272,14 +275,14 @@ class MemoryStore:
             type=MemoryType.EPISODIC,
             content=content,
             summary=content[:120],
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(tz=_UTC),
             importance_score=0.8,
             vector=vector,
             user_id=user_id,
             metadata=meta,
         )
-        self._memories.setdefault(user_id, []).append(entry)
         await self._insert_entry(entry)
+        self._memories.setdefault(user_id, []).append(entry)
         self._build_user_index(user_id)
         self._persist_user_index(user_id)
         logger.debug("Saved episodic memory %s for user %s", entry.id, user_id)
@@ -325,7 +328,7 @@ class MemoryStore:
             m.id: m for m in self._memories.get(user_id, [])
         }
 
-        now = datetime.utcnow()
+        now = datetime.now(tz=_UTC)
         results: list[tuple[float, MemoryEntry]] = []
         for idx in indices[0]:
             if idx < 0 or idx >= len(id_map):
@@ -343,6 +346,23 @@ class MemoryStore:
 
         results.sort(key=lambda t: t[0], reverse=True)
         return [entry for _, entry in results[:top_k]]
+
+    async def get_stats(self) -> dict:
+        """Return system-wide memory statistics."""
+        assert self._db is not None
+        cursor = await self._db.execute(
+            "SELECT user_id, COUNT(*) FROM memories GROUP BY user_id"
+        )
+        rows = await cursor.fetchall()
+        index_sizes = {
+            uid: store.size
+            for uid, store in self.user_faiss_stores.items()
+        }
+        return {
+            "user_count": len(rows),
+            "memory_count": sum(r[1] for r in rows),
+            "index_sizes": index_sizes,
+        }
 
     def get_all_memories(
         self, user_id: str, memory_type: Optional[MemoryType] = None

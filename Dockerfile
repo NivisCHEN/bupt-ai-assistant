@@ -8,16 +8,16 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir \
-    fastapi uvicorn[standard] pydantic pydantic-settings \
-    faiss-cpu sentence-transformers openai aiosqlite \
-    apscheduler jieba loguru httpx beautifulsoup4 \
-    rank_bm25 tenacity
+RUN pip install --no-cache-dir .
 
 COPY . .
 
 # Create data directory for SQLite and indices
 RUN mkdir -p data
+
+# Run as non-root user
+RUN useradd -m -s /bin/bash appuser && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8000
 

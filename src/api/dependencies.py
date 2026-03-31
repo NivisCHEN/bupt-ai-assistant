@@ -21,6 +21,7 @@ from src.llm.client import LLMClient
 from src.memory.compressor import MemoryCompressor
 from src.memory.manager import MemoryManager
 from src.memory.store import MemoryStore
+from src.retriever.faiss_store import FAISSStore
 from src.retriever.hybrid_retriever import HybridRetriever
 
 # ---------------------------------------------------------------------------
@@ -117,9 +118,11 @@ async def get_dialogue_manager() -> DialogueManager:
 
         router = IntentRouter(llm_client=llm_client)
         prompt_builder = PromptBuilder()
+
+        school_faiss_store = FAISSStore(dimension=app_settings.embedding.dimension)
         retriever = HybridRetriever(
+            faiss_store=school_faiss_store,
             embedding_service=embedding_service,
-            faiss_store=memory_store.user_faiss_stores,
         )
 
         _instances["dialogue_manager"] = DialogueManager(

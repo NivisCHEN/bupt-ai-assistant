@@ -7,7 +7,7 @@ archives low-importance entries to keep the active memory set lean.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -66,6 +66,18 @@ class MemoryCompressor:
 
         groups = self._group_similar(memories)
         compressed: list[MemoryEntry] = []
+
+        # Limit LLM calls to avoid exhausting API quota
+        max_groups = 20
+        if len(groups) > max_groups:
+            logger.warning(
+                "Too many groups (%d), only compressing first %d",
+                len(groups), max_groups,
+            )
+            # Keep excess groups as-is (flatten their entries into compressed)
+            for g in groups[max_groups:]:
+                compressed.extend(g)
+            groups = groups[:max_groups]
 
         for group in groups:
             if len(group) == 1:
@@ -138,7 +150,7 @@ class MemoryCompressor:
         score += 0.1 * ref_count
 
         # Recency via exponential decay
-        now = datetime.utcnow()
+        now = datetime.now(tz=timezone.utc)
         hours_old = max((now - memory.timestamp).total_seconds() / 3600, 0.01)
         recency = float(np.exp(-0.005 * hours_old))
         score += recency * 0.5

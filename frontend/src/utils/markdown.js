@@ -1,3 +1,5 @@
+import DOMPurify from "dompurify";
+
 export const renderMarkdown = (text) => {
   if (!text) return "";
   let html = text
@@ -30,5 +32,5 @@ export const renderMarkdown = (text) => {
   html = html
     .replace(/<p>(<li>)/g, "<ul>$1")
     .replace(/(<\/li>)<\/p>/g, "$1</ul>");
-  return html;
+  return DOMPurify.sanitize(html);
 };

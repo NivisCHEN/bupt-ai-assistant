@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -25,8 +27,21 @@ router = APIRouter()
 
 _GENERIC_ERROR = "服务内部错误，请稍后再试"
 
-# In-memory store for portal cookies (production: use Redis with TTL)
-_portal_cookies: dict[str, dict] = {}
+# In-memory store for portal cookies with TTL (production: use Redis)
+_COOKIE_TTL = timedelta(hours=2)
+_portal_cookies: dict[str, tuple[dict, datetime]] = {}
+
+
+def _get_portal_cookies(username: str) -> dict | None:
+    """Return cookies for a user, or None if missing/expired."""
+    entry = _portal_cookies.get(username)
+    if entry is None:
+        return None
+    cookies, created_at = entry
+    if datetime.now() - created_at > _COOKIE_TTL:
+        del _portal_cookies[username]
+        return None
+    return cookies
 
 
 def _safe_detail(exc: Exception) -> str:
@@ -105,9 +120,12 @@ class StatsResponse(BaseModel):
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
+    token_user_id: str = Depends(validate_user_token),
     dialogue_manager: DialogueManager = Depends(get_dialogue_manager),
 ) -> ChatResponse:
     """Process an incoming chat message and return an AI response."""
+    if token_user_id != request.user_id:
+        raise HTTPException(status_code=403, detail="User ID mismatch")
     try:
         response = await dialogue_manager.handle_message(request)
         return response
@@ -237,7 +255,7 @@ async def portal_login(
         from src.crawler.auth import login_bupt_portal
 
         cookies = await login_bupt_portal(request.username, request.password)
-        _portal_cookies[request.username] = cookies
+        _portal_cookies[request.username] = (cookies, datetime.now())
         return PortalLoginResponse(status="ok", message="登录成功")
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
@@ -252,7 +270,7 @@ async def crawl_portal(
     _token: str = Depends(validate_user_token),
 ) -> dict:
     """使用已认证的 cookies 爬取需要登录的内部数据源。"""
-    cookies = _portal_cookies.get(username)
+    cookies = _get_portal_cookies(username)
     if not cookies:
         raise HTTPException(status_code=401, detail="请先登录北邮门户")
 
@@ -276,17 +294,16 @@ async def crawl_portal(
 
 @router.post("/api/admin/reindex", response_model=ReindexResponse)
 async def reindex(
+    _admin: str = Depends(require_admin_key),
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> ReindexResponse:
     """Trigger a full knowledge base reindex."""
     try:
-        user_ids = list(memory_store._memories.keys())
-        for uid in user_ids:
-            memory_store._build_user_index(uid)
-
+        memory_store._rebuild_all_indices()
+        user_count = len(memory_store.user_faiss_stores)
         return ReindexResponse(
             status="ok",
-            message=f"Reindexed {len(user_ids)} user indices",
+            message=f"Reindexed {user_count} user indices",
         )
     except Exception as exc:
         logger.exception("Reindex failed")
@@ -319,24 +336,17 @@ async def crawl(
 
 @router.get("/api/admin/stats", response_model=StatsResponse)
 async def stats(
+    _admin: str = Depends(require_admin_key),
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> StatsResponse:
     """Return system-wide statistics."""
     try:
-        user_ids = list(memory_store._memories.keys())
-        total_memories = sum(
-            len(memory_store._memories[uid]) for uid in user_ids
-        )
-        index_sizes = {
-            uid: store.size
-            for uid, store in memory_store.user_faiss_stores.items()
-        }
-
+        info = await memory_store.get_stats()
         return StatsResponse(
             status="ok",
-            memory_count=total_memories,
-            user_count=len(user_ids),
-            index_sizes=index_sizes,
+            memory_count=info["memory_count"],
+            user_count=info["user_count"],
+            index_sizes=info["index_sizes"],
         )
     except Exception as exc:
         logger.exception("Stats retrieval failed")
