@@ -101,12 +101,12 @@ class BUPTSpider:
         last_error: Optional[Exception] = None
         for attempt in range(1, self.retry_max + 1):
             try:
+                # Rate-limit: sleep outside semaphore to avoid wasting slots
+                await asyncio.sleep(0.5)
                 async with self._semaphore:
                     if self._client is None:
                         logger.error("HTTP client not initialised")
                         return ""
-                    # Rate-limit: at least 500ms between requests per slot
-                    await asyncio.sleep(0.5)
                     response = await self._client.get(url)
                     response.raise_for_status()
                     return response.text

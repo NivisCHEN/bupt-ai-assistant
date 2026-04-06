@@ -20,8 +20,8 @@ from fastapi import HTTPException, Header
 _SECRET = os.getenv("USER_TOKEN_SECRET", "")
 
 if not _SECRET:
-    _is_debug = os.getenv("BUPT_APP__DEBUG", "").lower() in ("true", "1")
-    if _is_debug:
+    from config.settings import settings as _app_settings
+    if _app_settings.app.debug:
         _SECRET = "insecure-dev-secret-do-not-use-in-production"
         warnings.warn(
             "USER_TOKEN_SECRET is not set — using insecure dev fallback. "

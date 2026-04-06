@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
@@ -38,7 +38,7 @@ def _get_portal_cookies(username: str) -> dict | None:
     if entry is None:
         return None
     cookies, created_at = entry
-    if datetime.now() - created_at > _COOKIE_TTL:
+    if datetime.now(tz=timezone.utc) - created_at > _COOKIE_TTL:
         del _portal_cookies[username]
         return None
     return cookies
@@ -261,7 +261,7 @@ async def portal_login(
         from src.crawler.auth import login_bupt_portal
 
         cookies = await login_bupt_portal(request.username, request.password)
-        _portal_cookies[request.username] = (cookies, datetime.now())
+        _portal_cookies[request.username] = (cookies, datetime.now(tz=timezone.utc))
         return PortalLoginResponse(status="ok", message="登录成功")
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
