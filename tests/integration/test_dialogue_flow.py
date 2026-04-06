@@ -72,25 +72,27 @@ def _make_mock_embedding_service(dimension=64):
 
 
 def _make_mock_retriever(sources=None):
-    """Create a mock retriever that returns canned search results."""
-    retriever = AsyncMock()
+    """Create a mock retriever that returns canned search results.
+
+    Returns results in the HybridRetriever.retrieve() format:
+    list of dicts with id, score, content, metadata.
+    """
+    retriever = MagicMock()
     default_sources = sources or [
         {
             "id": "src-1",
-            "title": "图书馆开放时间",
-            "snippet": "北邮图书馆工作日开放时间为8:00-22:00",
-            "url": "https://lib.bupt.edu.cn",
             "score": 0.85,
+            "content": "北邮图书馆工作日开放时间为8:00-22:00",
+            "metadata": {"title": "图书馆开放时间", "source_url": "https://lib.bupt.edu.cn"},
         },
         {
             "id": "src-2",
-            "title": "图书馆位置",
-            "snippet": "图书馆位于校园中心区域",
-            "url": "https://www.bupt.edu.cn/map",
             "score": 0.72,
+            "content": "图书馆位于校园中心区域",
+            "metadata": {"title": "图书馆位置", "source_url": "https://www.bupt.edu.cn/map"},
         },
     ]
-    retriever.search = AsyncMock(return_value=default_sources)
+    retriever.retrieve = MagicMock(return_value=default_sources)
     return retriever
 
 
@@ -169,7 +171,7 @@ class TestKnowledgeIntentFlow:
         mock_embedding.encode_query.assert_called()
 
         # Retriever should have been called
-        mock_retriever.search.assert_called()
+        mock_retriever.retrieve.assert_called()
 
     @pytest.mark.asyncio
     async def test_knowledge_response_includes_sources(
@@ -219,7 +221,7 @@ class TestChitchatIntentFlow:
 
         assert response.answer
         # Retriever should NOT have been called for chitchat
-        mock_retriever.search.assert_not_called()
+        mock_retriever.retrieve.assert_not_called()
         # Embedding query encoding should NOT have been called
         mock_embedding.encode_query.assert_not_called()
 
@@ -268,10 +270,9 @@ class TestClarificationTrigger:
         low_score_retriever = _make_mock_retriever(sources=[
             {
                 "id": "src-low",
-                "title": "模糊结果",
-                "snippet": "可能相关的内容",
-                "url": "",
                 "score": 0.3,
+                "content": "可能相关的内容",
+                "metadata": {"title": "模糊结果", "source_url": ""},
             },
         ])
 
