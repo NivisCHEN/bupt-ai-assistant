@@ -1,9 +1,5 @@
-export const createApiClient = (baseUrl, token) => {
-  const headers = () => {
-    const h = { "Content-Type": "application/json" };
-    if (token) h["X-User-Token"] = token;
-    return h;
-  };
+export const createApiClient = (baseUrl) => {
+  const headers = () => ({ "Content-Type": "application/json" });
 
   return {
     chat: async (userId, query, sessionId, signal) => {
