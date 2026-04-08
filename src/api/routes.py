@@ -9,7 +9,6 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from config.settings import settings
-from src.api.auth import validate_user_token
 from src.api.dependencies import (
     get_dialogue_manager,
     get_embedding_service,
@@ -120,12 +119,9 @@ class StatsResponse(BaseModel):
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
-    token_user_id: str = Depends(validate_user_token),
     dialogue_manager: DialogueManager = Depends(get_dialogue_manager),
 ) -> ChatResponse:
     """Process an incoming chat message and return an AI response."""
-    if token_user_id != request.user_id:
-        raise HTTPException(status_code=403, detail="User ID mismatch")
     try:
         response = await dialogue_manager.handle_message(request)
         return response
@@ -154,14 +150,10 @@ async def health() -> dict:
 async def search_memories(
     user_id: str,
     body: MemorySearchRequest,
-    token_user_id: str = Depends(validate_user_token),
     memory_manager: MemoryManager = Depends(get_memory_manager),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
 ) -> dict:
     """Search a user's memories by semantic similarity."""
-    if token_user_id != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
     try:
         query_vector = embedding_service.encode_query(body.query)
         if query_vector.size == 0:
@@ -188,13 +180,9 @@ async def search_memories(
 async def get_history(
     user_id: str,
     limit: int = Query(default=10, ge=1, le=100),
-    token_user_id: str = Depends(validate_user_token),
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> dict:
     """Return recent conversation history for a user."""
-    if token_user_id != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
     try:
         entries = memory_store.get_recent_history(user_id, limit=limit)
         return {
@@ -211,13 +199,9 @@ async def delete_memory(
     user_id: str,
     memory_id: str,
     confirmation_token: str = Query(..., description="Token to confirm deletion"),
-    token_user_id: str = Depends(validate_user_token),
     memory_store: MemoryStore = Depends(get_memory_store),
 ) -> dict:
     """Delete a specific memory entry for a user."""
-    if token_user_id != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
     expected_token = f"confirm-delete-{memory_id}"
     if confirmation_token != expected_token:
         raise HTTPException(
@@ -248,7 +232,6 @@ async def delete_memory(
 @router.post("/api/portal/login", response_model=PortalLoginResponse)
 async def portal_login(
     request: PortalLoginRequest,
-    _token: str = Depends(validate_user_token),
 ) -> PortalLoginResponse:
     """用北邮统一认证账号密码登录，解锁内部数据源爬取。"""
     try:
@@ -267,7 +250,6 @@ async def portal_login(
 @router.post("/api/portal/crawl")
 async def crawl_portal(
     username: str = Query(...),
-    _token: str = Depends(validate_user_token),
 ) -> dict:
     """使用已认证的 cookies 爬取需要登录的内部数据源。"""
     cookies = _get_portal_cookies(username)

@@ -5,7 +5,6 @@ import { TRANSLATIONS } from "./i18n/translations";
 import { createApiClient } from "./api/client";
 import { generateId, formatTime, formatDate } from "./utils/helpers";
 
-import LoginPage from "./components/LoginPage";
 import Sidebar from "./components/Sidebar";
 import ChatHeader from "./components/ChatHeader";
 import ChatArea from "./components/ChatArea";
@@ -16,7 +15,7 @@ import ProfilePanel from "./components/ProfilePanel";
 
 export default function App() {
   // ── State ───────────────────────────────────────────────────
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState({ userId: "default_user", name: "用户" });
   const [settings, setSettings] = useState({
     theme: "light", lang: "zh", fontSize: "medium", density: "default",
     memoryEnabled: true, baseUrl: "http://localhost:8000",
@@ -59,6 +58,17 @@ export default function App() {
         if (s.userProfile) setUserProfile(s.userProfile);
       }
     } catch (e) { /* ignore */ }
+    // Auto-create first session for fresh users
+    if (!localStorage.getItem("xiaoqyou_state")) {
+      const id = generateId();
+      const session = {
+        id, title: "", createdAt: Date.now(), updatedAt: Date.now(),
+        pinned: false, archived: false, tags: [],
+      };
+      setSessions([session]);
+      setMessages({ [id]: [] });
+      setActiveSessionId(id);
+    }
   }, []);
 
   // ── Save to localStorage ────────────────────────────────────
@@ -121,8 +131,8 @@ export default function App() {
 
   // ── API client ─────────────────────────────────────────────
   const api = useMemo(() =>
-    createApiClient(settings.baseUrl, user?.token),
-    [settings.baseUrl, user?.token]
+    createApiClient(settings.baseUrl),
+    [settings.baseUrl]
   );
 
   // ── Create new session ─────────────────────────────────────
@@ -407,25 +417,7 @@ export default function App() {
     return groups;
   }, [filteredSessions]);
 
-  // ── Login handler ──────────────────────────────────────────
-  const handleLogin = (userData) => {
-    const { password, ...userWithoutPassword } = userData;
-    setUser(userWithoutPassword);
-    if (sessions.length === 0) createSession();
-
-    // 后台自动登录北邮门户，不阻塞用户操作
-    if (password && api) {
-      api.portalLogin(userData.userId, password).catch(() => {
-        // 门户登录失败不影响正常使用
-      });
-    }
-  };
-
   // ── Render ─────────────────────────────────────────────────
-  if (!user) {
-    return <LoginPage onLogin={handleLogin} t={t} />;
-  }
-
   return (
     <div className="xiaoqyou-root">
       {/* Mobile overlay */}
@@ -445,7 +437,7 @@ export default function App() {
         onDeleteSession={deleteSession}
         onSearchChange={setSearchQuery}
         onSetRightPanel={setRightPanel}
-        onLogout={() => { setUser(null); localStorage.removeItem("xiaoqyou_state"); }}
+        onLogout={() => { localStorage.removeItem("xiaoqyou_state"); window.location.reload(); }}
         onCloseSidebar={() => setSidebarOpen(false)}
       />
 
