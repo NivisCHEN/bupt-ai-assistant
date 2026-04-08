@@ -46,7 +46,7 @@ class MemoryCompressor:
     # Public API
     # ------------------------------------------------------------------
 
-    def compress_memories(
+    async def compress_memories(
         self, memories: list[MemoryEntry]
     ) -> list[MemoryEntry]:
         """Group similar memories and merge each group into a summary.
@@ -91,7 +91,7 @@ class MemoryCompressor:
                 f"{contents}\n\n摘要："
             )
             try:
-                summary = self.llm_client.generate(prompt)
+                summary = await self.llm_client.generate(prompt)
             except Exception:
                 logger.warning("LLM summarisation failed; keeping first entry")
                 summary = group[0].content

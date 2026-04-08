@@ -47,6 +47,40 @@ async def require_admin_key(
 
 
 # ---------------------------------------------------------------------------
+# Authentication dependencies
+# ---------------------------------------------------------------------------
+
+
+async def require_admin_key(
+    x_admin_key: str = Header(..., description="Admin API key"),
+) -> str:
+    """Validate the admin API key from the X-Admin-Key header.
+
+    Raises:
+        HTTPException: 403 if the key is missing or incorrect.
+    """
+    expected = os.getenv("ADMIN_API_KEY", "")
+    if not expected or x_admin_key != expected:
+        raise HTTPException(status_code=403, detail="Invalid or missing admin key")
+    return x_admin_key
+
+
+async def validate_user_token(
+    x_user_token: str = Header(..., description="User authentication token"),
+) -> str:
+    """Validate that the caller provides a non-empty user token.
+
+    This is a minimal guard; production should use JWT or similar.
+
+    Raises:
+        HTTPException: 401 if the token is missing.
+    """
+    if not x_user_token:
+        raise HTTPException(status_code=401, detail="Missing user token")
+    return x_user_token
+
+
+# ---------------------------------------------------------------------------
 # Dependency providers
 # ---------------------------------------------------------------------------
 
@@ -111,10 +145,10 @@ async def get_memory_manager() -> MemoryManager:
 async def get_dialogue_manager() -> DialogueManager:
     """Return the dialogue manager singleton."""
     if "dialogue_manager" not in _instances:
+        settings = await get_settings()
         llm_client = await get_llm_client()
         embedding_service = await get_embedding_service()
         memory_manager = await get_memory_manager()
-        memory_store = await get_memory_store()
 
         router = IntentRouter(llm_client=llm_client)
         prompt_builder = PromptBuilder()
