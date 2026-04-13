@@ -79,14 +79,18 @@ app.include_router(router)
 # CORS middleware
 # ---------------------------------------------------------------------------
 
-_cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+# CORS_ORIGINS env var: comma-separated origins, or "*" for any (default)
+_cors_env = os.getenv("CORS_ORIGINS", "*")
+_cors_origins = ["*"] if _cors_env.strip() == "*" else [o.strip() for o in _cors_env.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in _cors_origins],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Admin-Key", "X-User-Token"],
+    allow_origins=_cors_origins,
+    # CORS spec forbids credentials with wildcard origin; auth is stubbed so
+    # we don't need credentials anyway.
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
 )
 
 
