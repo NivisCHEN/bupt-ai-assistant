@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
+from typing import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -128,6 +131,47 @@ async def chat(
     except Exception as exc:
         logger.exception("Chat endpoint error for user {}", request.user_id)
         raise HTTPException(status_code=500, detail=_safe_detail(exc)) from exc
+
+
+def _sse_format(event: dict) -> str:
+    """Serialize one event dict as a single SSE message frame."""
+    event_type = event.get("type", "message")
+    payload = json.dumps(event, ensure_ascii=False)
+    return f"event: {event_type}\ndata: {payload}\n\n"
+
+
+@router.post("/api/chat/stream")
+async def chat_stream(
+    request: ChatRequest,
+    dialogue_manager: DialogueManager = Depends(get_dialogue_manager),
+) -> StreamingResponse:
+    """Stream a chat response as Server-Sent Events (SSE).
+
+    Emits:
+      * ``event: meta`` — sources, confidence, intent (once, before tokens)
+      * ``event: token`` — incremental content chunks
+      * ``event: done`` — final answer + suggestions
+      * ``event: error`` — on failure
+    """
+
+    async def event_source() -> AsyncIterator[str]:
+        try:
+            async for event in dialogue_manager.handle_message_stream(request):
+                yield _sse_format(event)
+        except Exception as exc:
+            logger.exception("Chat stream error for user {}", request.user_id)
+            yield _sse_format({"type": "error", "message": _safe_detail(exc)})
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={
+            # Disable nginx/proxy buffering so tokens flush to the client
+            # as soon as the model produces them.
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

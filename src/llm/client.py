@@ -3,16 +3,30 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import AsyncIterator, Optional
 
 from loguru import logger
-from openai import AsyncOpenAI
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    AsyncOpenAI,
+    RateLimitError,
+)
 from tenacity import (
     retry,
     stop_after_attempt,
     wait_exponential,
     retry_if_exception_type,
 )
+
+# Only retry on transient network/rate-limit errors. Business errors
+# (auth, bad request, model returned garbage) should surface immediately
+# so the frontend doesn't wait through ~30s of exponential backoff.
+_TRANSIENT_ERRORS = (APIConnectionError, APITimeoutError, RateLimitError)
+
+# Per-request timeout handed to the OpenAI SDK. Combined with
+# ``stop_after_attempt(2)`` this caps the worst case around ~2 minutes.
+_REQUEST_TIMEOUT_SECS = 60.0
 
 
 class LLMClient:
@@ -29,7 +43,11 @@ class LLMClient:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=_REQUEST_TIMEOUT_SECS,
+        )
 
     # ------------------------------------------------------------------
     # Core generation helpers
@@ -54,9 +72,9 @@ class LLMClient:
         return await self.generate_with_messages(messages)
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type(Exception),
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=1, max=5),
+        retry=retry_if_exception_type(_TRANSIENT_ERRORS),
         before_sleep=lambda rs: logger.warning(
             "LLM call failed (attempt {}), retrying...", rs.attempt_number,
         ),
@@ -83,6 +101,34 @@ class LLMClient:
         except Exception:
             logger.exception("LLM generation failed")
             raise
+
+    async def stream_with_messages(
+        self, messages: list[dict]
+    ) -> AsyncIterator[str]:
+        """Stream a completion token-by-token from an arbitrary message list.
+
+        Yields each non-empty content delta as it arrives. Errors are
+        re-raised; the caller is responsible for any retry/fallback.
+
+        Args:
+            messages: A list of ``{"role": ..., "content": ...}`` dicts.
+
+        Yields:
+            Content chunks (typically a few characters each).
+        """
+        stream = await self._client.chat.completions.create(
+            model=self.model,
+            messages=messages,  # type: ignore[arg-type]
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            stream=True,
+        )
+        async for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content or ""
+            if delta:
+                yield delta
 
     # ------------------------------------------------------------------
     # Intent classification

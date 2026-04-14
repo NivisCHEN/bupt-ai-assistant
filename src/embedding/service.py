@@ -26,11 +26,34 @@ class EmbeddingService:
         """Lazily load the SentenceTransformer model."""
         if self._model is not None:
             return
+
+        # Silence verbose output from transformers / huggingface_hub before
+        # importing anything that would read these env vars on first use.
+        import os
+
+        os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+        os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+        os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+        try:
+            from transformers.utils import logging as hf_logging
+
+            hf_logging.set_verbosity_error()
+        except Exception:  # pragma: no cover - best-effort silencing
+            pass
+
         from sentence_transformers import SentenceTransformer
 
         logger.info("Loading embedding model %s on %s ...", self.model_name, self.device)
         self._model = SentenceTransformer(self.model_name, device=self.device)
-        actual_dim = self._model.get_sentence_embedding_dimension()
+
+        # Prefer the new API (``get_embedding_dimension``); fall back to the
+        # deprecated one for older sentence-transformers versions.
+        get_dim = getattr(
+            self._model,
+            "get_embedding_dimension",
+            self._model.get_sentence_embedding_dimension,
+        )
+        actual_dim = get_dim()
         if actual_dim and actual_dim != self.dimension:
             logger.warning(
                 "Configured dim=%d but model produces dim=%d, auto-correcting",
