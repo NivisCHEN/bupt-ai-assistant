@@ -201,18 +201,56 @@ export default function App() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    try {
-      const response = await api.chat(user.userId, text.trim(), activeSessionId, controller.signal);
+    // Incrementally update the AI message as SSE frames arrive. Keep the
+    // streamed content in a local variable so each state update reflects
+    // the latest accumulation even when tokens arrive faster than React
+    // can flush.
+    let streamedContent = "";
+    let streamedSources = [];
+    let streamedConfidence = 0;
+    const patchAi = (patch) => {
       setMessages((prev) => ({
         ...prev,
         [activeSessionId]: prev[activeSessionId].map((m) =>
-          m.id === aiMsg.id ? {
-            ...m, content: response.answer, status: "done",
-            sources: response.sources || [], suggestions: response.suggestions || [],
-            confidence: response.confidence || 0,
-          } : m
+          m.id === aiMsg.id ? { ...m, ...patch } : m
         ),
       }));
+    };
+
+    try {
+      await api.chatStream(
+        user.userId,
+        text.trim(),
+        activeSessionId,
+        {
+          onMeta: (meta) => {
+            streamedSources = meta.sources || [];
+            streamedConfidence = meta.confidence || 0;
+            patchAi({
+              status: "streaming",
+              sources: streamedSources,
+              confidence: streamedConfidence,
+            });
+          },
+          onToken: (chunk) => {
+            streamedContent += chunk;
+            patchAi({ content: streamedContent, status: "streaming" });
+          },
+          onDone: (done) => {
+            patchAi({
+              content: done.answer || streamedContent,
+              status: "done",
+              sources: streamedSources,
+              suggestions: done.suggestions || [],
+              confidence: streamedConfidence,
+            });
+          },
+          onError: (err) => {
+            throw err;
+          },
+        },
+        controller.signal,
+      );
     } catch (err) {
       if (err.name === "AbortError") {
         setMessages((prev) => ({
@@ -221,6 +259,9 @@ export default function App() {
             m.id === aiMsg.id ? { ...m, status: "done", content: m.content || t.stop } : m
           ),
         }));
+      } else if (streamedContent) {
+        // Stream errored mid-way — keep what we got and mark done.
+        patchAi({ content: streamedContent, status: "done" });
       } else {
         // Demo fallback when backend is unavailable
         const demoResponses = [

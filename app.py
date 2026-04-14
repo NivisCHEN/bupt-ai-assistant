@@ -41,6 +41,15 @@ async def lifespan(app: FastAPI):
 
     memory_manager = await get_memory_manager()
     embedding_service = await get_embedding_service()
+
+    # Pre-warm the embedding model so the first chat request doesn't pay
+    # the multi-second model-load cost.
+    try:
+        embedding_service.encode(["预热"])
+        logger.info("Embedding model pre-warmed")
+    except Exception as exc:  # pragma: no cover - best-effort warmup
+        logger.warning("Embedding model pre-warm failed: {}", exc)
+
     _scheduler = BackgroundScheduler(
         memory_manager=memory_manager,
         embedding_service=embedding_service,
