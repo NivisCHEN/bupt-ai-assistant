@@ -27,6 +27,11 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "ruff>=0.3.0",
 ]
+# Browser-based portal crawler (requires a local Chrome/Edge installation)
+portal = [
+    "DrissionPage>=4.0.0",
+    "trafilatura>=1.6.0",
+]
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
