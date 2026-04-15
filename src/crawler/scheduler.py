@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru import logger
@@ -12,12 +12,20 @@ from src.crawler.base import BUPT_DATA_SOURCES, DataSource
 from src.crawler.processor import DocumentProcessor
 from src.crawler.spider import BUPTSpider
 
+if TYPE_CHECKING:
+    from src.retriever.hybrid_retriever import HybridRetriever
+
 
 class CrawlScheduler:
     """Manages periodic crawl jobs for all configured BUPT data sources."""
 
-    def __init__(self, processor: DocumentProcessor) -> None:
+    def __init__(
+        self,
+        processor: DocumentProcessor,
+        retriever: Optional[HybridRetriever] = None,
+    ) -> None:
         self.processor = processor
+        self.retriever = retriever
         self._scheduler: Optional[AsyncIOScheduler] = None
 
     # ------------------------------------------------------------------
@@ -86,10 +94,37 @@ class CrawlScheduler:
                 chunks = self.processor.process_documents(raw_docs)
                 stats["chunks_created"] = len(chunks)
 
-                if chunks:
-                    store, metadata = self.processor.build_knowledge_base(chunks)
+                if chunks and self.retriever is not None:
+                    import numpy as np
+
+                    vectors = np.array(
+                        [c.vector for c in chunks if c.vector],
+                        dtype=np.float32,
+                    )
+                    docs_for_bm25 = [
+                        {
+                            "id": c.id,
+                            "content": c.content,
+                            "metadata": c.metadata,
+                        }
+                        for c in chunks
+                    ]
+
+                    if vectors.size > 0:
+                        self.retriever.faiss_store.add_vectors(vectors)
+                    self.retriever.build_bm25_index(
+                        self.retriever._documents + docs_for_bm25,
+                    )
                     logger.info(
-                        "Knowledge base updated for {}: {} vectors",
+                        "Main knowledge base updated for {}: added {} vectors",
+                        source.name,
+                        vectors.shape[0] if vectors.size > 0 else 0,
+                    )
+                elif chunks:
+                    # Fallback: no retriever injected, build standalone store
+                    store, metadata = self.processor.build_knowledge_base(chunks)
+                    logger.warning(
+                        "No retriever injected; built standalone store for {}: {} vectors",
                         source.name,
                         store.size,
                     )

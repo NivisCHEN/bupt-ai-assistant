@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.env
+*.pem
+*.key
+data/raw/
+data/processed/
+data/indices/
+data/*.db
+logs/
+*.log
+.git/
+.github/
+tests/
+*.index

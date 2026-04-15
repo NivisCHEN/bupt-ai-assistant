@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import time
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -19,6 +21,53 @@ from src.api.routes import router
 from src.scheduler.background import BackgroundScheduler
 
 # ---------------------------------------------------------------------------
+# Background scheduler instance
+# ---------------------------------------------------------------------------
+
+_scheduler: BackgroundScheduler | None = None
+
+# ---------------------------------------------------------------------------
+# Lifespan context manager
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialise all services on startup; clean up on shutdown."""
+    global _scheduler
+
+    logger.info("Starting BUPT Campus AI Assistant...")
+    await init_all()
+
+    memory_manager = await get_memory_manager()
+    embedding_service = await get_embedding_service()
+
+    # Pre-warm the embedding model so the first chat request doesn't pay
+    # the multi-second model-load cost.
+    try:
+        embedding_service.encode(["预热"])
+        logger.info("Embedding model pre-warmed")
+    except Exception as exc:  # pragma: no cover - best-effort warmup
+        logger.warning("Embedding model pre-warm failed: {}", exc)
+
+    _scheduler = BackgroundScheduler(
+        memory_manager=memory_manager,
+        embedding_service=embedding_service,
+    )
+    _scheduler.start()
+    logger.info("Application startup complete")
+
+    yield
+
+    logger.info("Shutting down BUPT Campus AI Assistant...")
+    if _scheduler is not None:
+        _scheduler.stop()
+        _scheduler = None
+    await shutdown_all()
+    logger.info("Application shutdown complete")
+
+
+# ---------------------------------------------------------------------------
 # Application factory
 # ---------------------------------------------------------------------------
 
@@ -29,64 +78,29 @@ app = FastAPI(
         "任务执行等功能的 AI 对话系统。"
     ),
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Include API routes
 app.include_router(router)
 
 # ---------------------------------------------------------------------------
-# CORS middleware (allow all origins for development)
+# CORS middleware
 # ---------------------------------------------------------------------------
+
+# CORS_ORIGINS env var: comma-separated origins, or "*" for any (default)
+_cors_env = os.getenv("CORS_ORIGINS", "*")
+_cors_origins = ["*"] if _cors_env.strip() == "*" else [o.strip() for o in _cors_env.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=_cors_origins,
+    # CORS spec forbids credentials with wildcard origin; auth is stubbed so
+    # we don't need credentials anyway.
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
-
-# ---------------------------------------------------------------------------
-# Background scheduler instance (created at module level, started on startup)
-# ---------------------------------------------------------------------------
-
-_scheduler: BackgroundScheduler | None = None
-
-# ---------------------------------------------------------------------------
-# Lifecycle events
-# ---------------------------------------------------------------------------
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    """Initialise all services and start the background scheduler."""
-    global _scheduler
-
-    logger.info("Starting BUPT Campus AI Assistant...")
-    await init_all()
-
-    # Wire up the background scheduler
-    memory_manager = await get_memory_manager()
-    embedding_service = await get_embedding_service()
-    _scheduler = BackgroundScheduler(
-        memory_manager=memory_manager,
-        embedding_service=embedding_service,
-    )
-    _scheduler.start()
-    logger.info("Application startup complete")
-
-
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    """Stop the background scheduler and clean up services."""
-    global _scheduler
-
-    logger.info("Shutting down BUPT Campus AI Assistant...")
-    if _scheduler is not None:
-        _scheduler.stop()
-        _scheduler = None
-    await shutdown_all()
-    logger.info("Application shutdown complete")
 
 
 # ---------------------------------------------------------------------------
@@ -116,9 +130,11 @@ async def log_requests(request: Request, call_next):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    from config.settings import settings as app_settings
+
     uvicorn.run(
         "app:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
+        host=app_settings.app.host,
+        port=app_settings.app.port,
+        reload=app_settings.app.debug,
     )

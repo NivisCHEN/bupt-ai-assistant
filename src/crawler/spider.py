@@ -26,11 +26,13 @@ class BUPTSpider:
         concurrent_limit: int = 5,
         retry_max: int = 3,
         respect_robots: bool = True,
+        cookies: dict | None = None,
     ) -> None:
         self.source = source
         self.concurrent_limit = concurrent_limit
         self.retry_max = retry_max
         self.respect_robots = respect_robots
+        self.cookies = cookies or {}
 
         self._semaphore = asyncio.Semaphore(concurrent_limit)
         self._robots_cache: dict[str, RobotFileParser] = {}
@@ -51,6 +53,7 @@ class BUPTSpider:
             timeout=httpx.Timeout(30.0),
             follow_redirects=True,
             headers={"User-Agent": "BUPTAIAssistant/1.0"},
+            cookies=self.cookies,
         ) as client:
             self._client = client
 
@@ -98,6 +101,8 @@ class BUPTSpider:
         last_error: Optional[Exception] = None
         for attempt in range(1, self.retry_max + 1):
             try:
+                # Rate-limit: sleep outside semaphore to avoid wasting slots
+                await asyncio.sleep(0.5)
                 async with self._semaphore:
                     if self._client is None:
                         logger.error("HTTP client not initialised")

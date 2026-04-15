@@ -11,26 +11,31 @@ dependencies = [
     "faiss-cpu>=1.7.4",
     "sentence-transformers>=2.3.0",
     "openai>=1.12.0",
-    "scrapy>=2.11.0",
     "beautifulsoup4>=4.12.0",
     "httpx>=0.27.0",
-    "redis>=5.0.0",
-    "sqlalchemy>=2.0.0",
     "aiosqlite>=0.19.0",
     "apscheduler>=3.10.0",
     "jieba>=0.42.1",
     "loguru>=0.7.0",
+    "tenacity>=8.2.0",
+    "rank_bm25>=0.2.2",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+]
+# Browser-based portal crawler (requires a local Chrome/Edge installation)
+portal = [
+    "DrissionPage>=4.0.0",
+    "trafilatura>=1.6.0",
 ]
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

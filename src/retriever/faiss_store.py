@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class FAISSStore:
     """Vector store backed by FAISS for similarity search."""
 
-    def __init__(self, dimension: int = 1024) -> None:
+    def __init__(self, dimension: int = 512) -> None:
         self.dimension = dimension
         self._index: faiss.Index | None = None
 
